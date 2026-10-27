@@ -1,0 +1,14 @@
+build*/
+mbedtls-generated*/
+__pycache__/
+.vs/
+.vscode/
+.cache/
+.tools/
+dist/
+*.zip
+compile_commands.json
+.clangd
+/.idea/
+/hl2sdk-cs2/
+/metamod-source/

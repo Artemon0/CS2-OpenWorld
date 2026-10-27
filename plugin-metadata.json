@@ -1,0 +1,11 @@
+{
+    "name":  "cs2-openworld",
+    "alias":  "cs2-openworld",
+    "display_name":  "CS2 Open World",
+    "description":  "Modular Counter-Strike 2 open-world server plugin",
+    "author":  "Artemon0",
+    "url":  "",
+    "log_tag":  "CS2-OPENWORLD",
+    "license":  "Code closed",
+    "version":  "0.0.1"
+}

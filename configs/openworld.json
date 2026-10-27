@@ -1,0 +1,20 @@
+{
+  "core": {
+    "server_id": "local-01",
+    "environment": "development"
+  },
+  "persistence": {
+    "provider": "postgresql"
+  },
+  "cache": {
+    "provider": "memory",
+    "shared_provider": "redis"
+  },
+  "ui": {
+    "simple_hud": "panorama",
+    "specialized_menus": "particle"
+  },
+  "modules": {
+    "vehicles": false
+  }
+}
