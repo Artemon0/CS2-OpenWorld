@@ -200,8 +200,40 @@ if (BUILD_TESTING)
     add_executable(particle-menu-tests
             tests/unit/particle_menu_tests.cpp
             src/ui/particle/particle_menu.cpp
+            src/ui/particle/particle_menu_sessions.cpp
     )
     target_compile_features(particle-menu-tests PRIVATE cxx_std_20)
     target_include_directories(particle-menu-tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
     add_test(NAME particle-menu-tests COMMAND particle-menu-tests)
+
+    add_executable(core-tests
+            tests/unit/core_tests.cpp
+            src/core/module_manager.cpp
+            src/modules/persistence/cache_manager.cpp
+            src/modules/transfer/transfer_manager.cpp
+            src/adapters/cs2/client_redirector.cpp
+    )
+    target_compile_features(core-tests PRIVATE cxx_std_20)
+    target_include_directories(core-tests PRIVATE
+            "${CMAKE_SOURCE_DIR}/src"
+            "${TEMPLATE_SDK_ROOT}"
+            ${TEMPLATE_SDK_INCLUDE_DIRS}
+            "${TEMPLATE_SDK_ROOT}/public/engine"
+            "${TEMPLATE_SDK_ROOT}/public/tier1"
+            "${TEMPLATE_SDK_ROOT}/public/entity2"
+            "${TEMPLATE_PROTOBUF_GEN_DIR}"
+    )
+    if (MSVC)
+        target_compile_definitions(core-tests PRIVATE
+                COMPILER_MSVC COMPILER_MSVC64 WIN32 WIN64 X64BITS PLATFORM_64BITS
+                GAME_DLL META_IS_SOURCE2 SOURCE_ENGINE=${TEMPLATE_SDK_CODE}
+        )
+    else ()
+        target_compile_definitions(core-tests PRIVATE
+                COMPILER_GCC LINUX _LINUX POSIX X64BITS PLATFORM_64BITS
+                GAME_DLL META_IS_SOURCE2 SOURCE_ENGINE=${TEMPLATE_SDK_CODE}
+                ${TEMPLATE_SDK_LINUX_DEFINES}
+        )
+    endif ()
+    add_test(NAME core-tests COMMAND core-tests)
 endif ()

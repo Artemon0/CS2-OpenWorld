@@ -21,6 +21,14 @@ bool ParticleMenu::SetPages(std::vector<std::array<MenuItem, ItemsPerPage>> newP
 			{
 				return false;
 			}
+			if (item.enabled && (!std::isfinite(item.bounds.left) || !std::isfinite(item.bounds.top) ||
+								 !std::isfinite(item.bounds.right) || !std::isfinite(item.bounds.bottom) ||
+								 item.bounds.left < 0.0f || item.bounds.top < 0.0f || item.bounds.right > 1.0f ||
+								 item.bounds.bottom > 1.0f || item.bounds.left >= item.bounds.right ||
+								 item.bounds.top >= item.bounds.bottom))
+			{
+				return false;
+			}
 			if (item.targetPage && *item.targetPage >= newPages.size())
 			{
 				return false;
@@ -31,6 +39,7 @@ bool ParticleMenu::SetPages(std::vector<std::array<MenuItem, ItemsPerPage>> newP
 	pages = std::move(newPages);
 	pageIndex = 0;
 	hoveredItem.reset();
+	pageHistory.clear();
 	cursor = {};
 	return true;
 }
@@ -54,11 +63,35 @@ void ParticleMenu::MoveCursor(float yawDelta, float pitchDelta, float sensitivit
 
 	cursor.x = std::clamp(cursor.x + yawDelta * sensitivity, 0.0f, 1.0f);
 	cursor.y = std::clamp(cursor.y - pitchDelta * sensitivity, 0.0f, 1.0f);
+	HitTestCursor();
+}
+
+std::optional<std::size_t> ParticleMenu::HitTestCursor()
+{
+	if (!IsOpen())
+	{
+		hoveredItem.reset();
+		return std::nullopt;
+	}
+
+	const auto& page = pages[pageIndex];
+	for (std::size_t index = 0; index < page.size(); ++index)
+	{
+		const MenuItem& item = page[index];
+		if (item.enabled && cursor.x >= item.bounds.left && cursor.x < item.bounds.right &&
+			cursor.y >= item.bounds.top && cursor.y < item.bounds.bottom)
+		{
+			hoveredItem = index;
+			return index;
+		}
+	}
+	hoveredItem.reset();
+	return std::nullopt;
 }
 
 void ParticleMenu::SetHoveredItem(std::optional<std::size_t> itemIndex)
 {
-	if (!IsOpen() || (itemIndex && *itemIndex >= ItemsPerPage))
+	if (!IsOpen() || (itemIndex && (*itemIndex >= ItemsPerPage || !pages[pageIndex][*itemIndex].enabled)))
 	{
 		hoveredItem.reset();
 		return;
@@ -81,6 +114,7 @@ std::optional<MenuSelection> ParticleMenu::ActivateHovered()
 	}
 	if (item.targetPage)
 	{
+		pageHistory.push_back(pageIndex);
 		pageIndex = *item.targetPage;
 		hoveredItem.reset();
 		return std::nullopt;
@@ -89,10 +123,23 @@ std::optional<MenuSelection> ParticleMenu::ActivateHovered()
 	return MenuSelection{item.id, item.label, pageIndex, itemIndex};
 }
 
+bool ParticleMenu::NavigateBack()
+{
+	if (!IsOpen() || pageHistory.empty())
+	{
+		return false;
+	}
+	pageIndex = pageHistory.back();
+	pageHistory.pop_back();
+	hoveredItem.reset();
+	return true;
+}
+
 void ParticleMenu::Close()
 {
 	pages.clear();
 	hoveredItem.reset();
+	pageHistory.clear();
 	pageIndex = 0;
 	cursor = {};
 }

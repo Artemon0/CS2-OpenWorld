@@ -25,6 +25,7 @@ public:
 		bool active {};
 		bool fullyConnected {};
 		bool steamAuthenticated {};
+		bool readyForGameplay {};
 	};
 
 	bool Load(PluginId id, ISmmAPI* ismm, char* error, size_t maxlen, bool late) override;

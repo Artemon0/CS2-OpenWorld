@@ -210,7 +210,10 @@ void OpenWorldPlugin::OnGameFrame(bool simulating)
 
 	for (auto& entry : players)
 	{
-		RefreshSteamAuthorization(entry.second);
+		if (!entry.second.steamAuthenticated)
+		{
+			RefreshSteamAuthorization(entry.second);
+		}
 	}
 
 }
@@ -303,6 +306,7 @@ void OpenWorldPlugin::RefreshSteamAuthorization(PlayerInfo& player)
 		META_CONPRINTF("[%s] Steam authorization confirmed for player slot %d.\n", PLUGIN_LOGTAG, player.slot);
 	}
 	player.steamAuthenticated = authenticated;
+	player.readyForGameplay = player.steamAuthenticated && player.active && player.fullyConnected;
 }
 
 void OpenWorldPlugin::InstallHooks()
