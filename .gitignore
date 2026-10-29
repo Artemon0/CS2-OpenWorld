@@ -7,6 +7,7 @@ __pycache__/
 .tools/
 dist/
 *.zip
+.env
 compile_commands.json
 .clangd
 /.idea/

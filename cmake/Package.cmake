@@ -30,7 +30,7 @@ function(template_add_package target)
     foreach (_asset_pair
             "${CMAKE_SOURCE_DIR}/gamedata/${TEMPLATE_META_NAME}.games.txt|${_gamedata_dir}/${TEMPLATE_META_NAME}.games.txt"
             "${CMAKE_SOURCE_DIR}/cfg/plugin.cfg|${_cfg_dir}/${TEMPLATE_META_NAME}.cfg"
-            "${CMAKE_SOURCE_DIR}/configs/openworld.json|${_plugin_root}/configs/openworld.json"
+            "${CMAKE_SOURCE_DIR}/configs/openworld.ini|${_plugin_root}/configs/openworld.ini"
     )
         string(REPLACE "|" ";" _asset_parts "${_asset_pair}")
         list(GET _asset_parts 0 _asset_source)

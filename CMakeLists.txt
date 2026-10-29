@@ -4,6 +4,9 @@ cmake_minimum_required(VERSION 3.19)
 project(CS2OpenWorld LANGUAGES CXX C)
 
 include(CTest)
+find_package(Threads REQUIRED)
+
+option(OW_ENABLE_CACHE_FALLBACK "Build optional cache fallback components (disabled by default)." OFF)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(JsonUtil)
@@ -150,11 +153,19 @@ if (WIN32)
 else ()
     list(FILTER TEMPLATE_PLUGIN_SOURCES EXCLUDE REGEX "_(win|windows)\\.(c|cpp)$")
 endif ()
+if (NOT OW_ENABLE_CACHE_FALLBACK)
+    list(FILTER TEMPLATE_PLUGIN_SOURCES EXCLUDE REGEX "/src/modules/persistence/(cache_manager|player_warmup|redis_cache)\\.cpp$")
+endif ()
 
 add_library("${TEMPLATE_META_NAME}" MODULE
         ${TEMPLATE_PLUGIN_SOURCES}
 )
 template_configure_target("${TEMPLATE_META_NAME}")
+if (OW_ENABLE_CACHE_FALLBACK)
+    target_compile_definitions("${TEMPLATE_META_NAME}" PRIVATE OW_ENABLE_CACHE_FALLBACK=1)
+else ()
+    message(STATUS "OW cache fallback is disabled and excluded from the plugin build.")
+endif ()
 
 set_target_properties("${TEMPLATE_META_NAME}" PROPERTIES
         PREFIX ""
@@ -172,6 +183,7 @@ target_include_directories("${TEMPLATE_META_NAME}" PRIVATE
 if (WIN32)
     target_link_libraries("${TEMPLATE_META_NAME}" PRIVATE
             ${TEMPLATE_SDK_WINDOWS_LIBS}
+            "ws2_32.lib"
             "psapi.lib"
             "${TEMPLATE_SDK_ROOT}/lib/public/win64/mathlib.lib"
     )
@@ -179,6 +191,7 @@ else ()
     target_link_libraries("${TEMPLATE_META_NAME}" PRIVATE
             ${TEMPLATE_SDK_LINUX_POSTLINK_LIBS}
             ${TEMPLATE_SDK_LINUX_DYNAMIC_LIBS}
+            ${CMAKE_DL_LIBS}
             "${TEMPLATE_SDK_ROOT}/lib/linux64/mathlib.a"
     )
 endif ()
@@ -192,6 +205,7 @@ template_configure_target(template-protobuf)
 target_include_directories(template-protobuf PRIVATE "${TEMPLATE_PROTOBUF_GEN_DIR}")
 target_include_directories("${TEMPLATE_META_NAME}" PRIVATE "${TEMPLATE_PROTOBUF_GEN_DIR}")
 target_link_libraries("${TEMPLATE_META_NAME}" PRIVATE template-protobuf)
+target_link_libraries("${TEMPLATE_META_NAME}" PRIVATE Threads::Threads)
 add_dependencies("${TEMPLATE_META_NAME}" template-protobuf-gen)
 
 template_add_package("${TEMPLATE_META_NAME}")
@@ -208,12 +222,27 @@ if (BUILD_TESTING)
 
     add_executable(core-tests
             tests/unit/core_tests.cpp
+            src/adapters/persistence/postgres_adapter.cpp
+            src/adapters/persistence/player_settings_cache.cpp
+            src/modules/persistence/player_settings_worker.cpp
+            src/core/cluster_config.cpp
             src/core/module_manager.cpp
-            src/modules/persistence/cache_manager.cpp
             src/modules/transfer/transfer_manager.cpp
             src/adapters/cs2/client_redirector.cpp
     )
+    if (OW_ENABLE_CACHE_FALLBACK)
+        target_sources(core-tests PRIVATE
+                src/modules/persistence/cache_manager.cpp
+                src/modules/persistence/player_warmup.cpp
+                src/modules/persistence/redis_cache.cpp
+        )
+        target_compile_definitions(core-tests PRIVATE OW_ENABLE_CACHE_FALLBACK=1)
+    endif ()
     target_compile_features(core-tests PRIVATE cxx_std_20)
+    target_link_libraries(core-tests PRIVATE Threads::Threads)
+    if (CMAKE_DL_LIBS)
+        target_link_libraries(core-tests PRIVATE ${CMAKE_DL_LIBS})
+    endif ()
     target_include_directories(core-tests PRIVATE
             "${CMAKE_SOURCE_DIR}/src"
             "${TEMPLATE_SDK_ROOT}"
@@ -228,6 +257,7 @@ if (BUILD_TESTING)
                 COMPILER_MSVC COMPILER_MSVC64 WIN32 WIN64 X64BITS PLATFORM_64BITS
                 GAME_DLL META_IS_SOURCE2 SOURCE_ENGINE=${TEMPLATE_SDK_CODE}
         )
+        target_link_libraries(core-tests PRIVATE "ws2_32.lib")
     else ()
         target_compile_definitions(core-tests PRIVATE
                 COMPILER_GCC LINUX _LINUX POSIX X64BITS PLATFORM_64BITS

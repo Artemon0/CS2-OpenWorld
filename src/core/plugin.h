@@ -2,18 +2,37 @@
 
 #include <ISmmPlugin.h>
 #include <eiface.h>
+#include <igameevents.h>
 #include <tier1/convar.h>
 #include <playerslot.h>
-
 #include <string>
+#include <memory>
+#include <optional>
 #include <unordered_map>
+#include <vector>
 
+#include "adapters/persistence/postgres_adapter.h"
+#include "cluster_config.h"
+#include "event_bus.h"
 #include "module_manager.h"
+#include "service_registry.h"
 #include "version_gen.h"
+#include "modules/persistence/player_settings_worker.h"
+#include "modules/core/core_module.h"
+#include "modules/character/character_manager.h"
+#include "modules/transfer/transfer_module.h"
 
 PLUGIN_GLOBALVARS();
 
-class OpenWorldPlugin final : public ISmmPlugin, public IMetamodListener
+enum class PlayerSettingsLoadStatus
+{
+	NotRequested,
+	Loading,
+	Ready,
+	Failed
+};
+
+class OpenWorldPlugin final : public ISmmPlugin, public IMetamodListener, public IGameEventListener2
 {
 public:
 	struct PlayerInfo
@@ -26,6 +45,11 @@ public:
 		bool fullyConnected {};
 		bool steamAuthenticated {};
 		bool readyForGameplay {};
+		std::uint64_t settingsRequestId {};
+		PlayerSettingsLoadStatus settingsLoadStatus {PlayerSettingsLoadStatus::NotRequested};
+		std::optional<ow::adapters::PlayerSettings> settings;
+		std::string settingsLoadError;
+		std::string characterId;
 	};
 
 	bool Load(PluginId id, ISmmAPI* ismm, char* error, size_t maxlen, bool late) override;
@@ -55,23 +79,57 @@ public:
 	void OnClientCommand(CPlayerSlot slot, const CCommand& command);
 	void OnClientSettingsChanged(CPlayerSlot slot);
 
+	void FireGameEvent(IGameEvent* event) override;
+
 	bool IsLoaded() const { return loaded; }
 	const PlayerInfo* FindPlayer(CPlayerSlot slot) const;
+	PlayerInfo* FindPlayerMutable(CPlayerSlot slot);
+#ifdef OW_ENABLE_CACHE_FALLBACK
+	ow::persistence::ICacheStore* GetCacheStore() const { return cacheStore.get(); }
+	ow::persistence::AsyncCacheWarmer* GetCacheWarmer() const { return cacheWarmer.get(); }
+#endif
+	ow::adapters::PostgreSQLAdapter* GetPersistenceAdapter() const { return persistenceAdapter.get(); }
+	const ow::core::ClusterConfig* GetClusterConfig() const { return clusterConfig ? &*clusterConfig : nullptr; }
+	ow::core::ModuleManager& GetModuleManager() { return moduleManager; }
+	ow::core::EventBus& GetEventBus() { return eventBus; }
+	ow::core::ServiceRegistry& GetServiceRegistry() { return serviceRegistry; }
 
 private:
 	void InstallHooks();
 	void RemoveHooks();
+	void InstallGameEvents();
+	void RemoveGameEvents();
 	void RefreshSteamAuthorization(PlayerInfo& player);
+	void ResetPlayerSettings(PlayerInfo& player);
+	void RequestPlayerSettings(PlayerInfo& player);
+	void ProcessPlayerSettingsResults();
+	void HandleTransferChatCommand(CPlayerSlot slot, const CCommand& command);
+	void HandlePlayerSpawned(const char* eventName);
 
 	ISource2Server* server {};
 	IVEngineServer2* engine {};
 	ISource2GameClients* gameClients {};
+	IGameEventManager2* gameEventManager {};
 	bool loaded {};
 	bool paused {};
 	bool serverHookInstalled {};
 	bool clientHooksInstalled {};
+	bool gameEventsRegistered {};
+	std::optional<ow::core::ClusterConfig> clusterConfig;
+	std::unique_ptr<ow::adapters::PostgreSQLAdapter> persistenceAdapter;
+	std::unique_ptr<ow::persistence::PlayerSettingsWorker> playerSettingsWorker;
+#ifdef OW_ENABLE_CACHE_FALLBACK
+	std::unique_ptr<ow::persistence::ICacheStore> cacheStore;
+	std::unique_ptr<ow::persistence::AsyncCacheWarmer> cacheWarmer;
+#endif
 	ow::core::ModuleManager moduleManager;
+	ow::core::EventBus eventBus;
+	ow::core::ServiceRegistry serviceRegistry;
+	std::unique_ptr<ow::modules::CoreModule> coreModule;
+	std::unique_ptr<ow::modules::CharacterManager> characterManager;
+	std::unique_ptr<ow::modules::TransferModule> transferModule;
 	std::unordered_map<int, PlayerInfo> players;
+	std::uint64_t nextSettingsRequestId {};
 };
 
 extern OpenWorldPlugin g_OpenWorld;

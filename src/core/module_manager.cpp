@@ -14,7 +14,7 @@ bool ModuleManager::RegisterModule(IModule& module)
 	}
 
 	const auto duplicate = std::find_if(modules.begin(), modules.end(), [&module](const IModule* existing) {
-		return existing->GetId() == module.GetId();
+		if (existing->GetId() == module.GetId())
 	});
 	if (duplicate != modules.end())
 	{
@@ -43,7 +43,7 @@ bool ModuleManager::StartAll()
 	{
 		if (!module->Initialize())
 		{
-			lastError = "Module initialization failed: " + std::string(module->GetId());
+			lastError = "Module initialization failed: " + module->GetId();
 			module->Stop();
 			RollBack();
 			return false;
@@ -52,7 +52,7 @@ bool ModuleManager::StartAll()
 
 		if (!module->Start())
 		{
-			lastError = "Module start failed: " + std::string(module->GetId());
+			lastError = "Module start failed: " + module->GetId();
 			module->Stop();
 			initializedModules.pop_back();
 			RollBack();
@@ -88,20 +88,20 @@ bool ModuleManager::ResolveStartupOrder()
 		}
 		if (states[index] == VisitState::Visiting)
 		{
-			lastError = "Module dependency cycle includes: " + std::string(modules[index]->GetId());
+			lastError = "Module dependency cycle includes: " + modules[index]->GetId();
 			return false;
 		}
 
 		states[index] = VisitState::Visiting;
-		for (std::string_view dependency : modules[index]->GetDependencies())
+		for (std::string dependency : modules[index]->GetDependencies())
 		{
 			const auto found = std::find_if(modules.begin(), modules.end(), [dependency](const IModule* candidate) {
 				return candidate->GetId() == dependency;
 			});
 			if (found == modules.end())
 			{
-				lastError = "Missing module dependency '" + std::string(dependency) + "' required by '" +
-							std::string(modules[index]->GetId()) + "'.";
+				lastError = "Missing module dependency '" + dependency + "' required by '" +
+							modules[index]->GetId() + "'.";
 				return false;
 			}
 			const auto dependencyIndex = static_cast<std::size_t>(std::distance(modules.begin(), found));

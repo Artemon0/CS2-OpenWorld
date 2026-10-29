@@ -41,6 +41,9 @@ bool ParticleMenu::SetPages(std::vector<std::array<MenuItem, ItemsPerPage>> newP
 	hoveredItem.reset();
 	pageHistory.clear();
 	cursor = {};
+	hudCursorX = DefaultHudItemX;
+	hudCursorRow = 0.0f;
+	hudHoverIndex = HoverTargetNone;
 	return true;
 }
 
@@ -66,6 +69,111 @@ void ParticleMenu::MoveCursor(float yawDelta, float pitchDelta, float sensitivit
 	HitTestCursor();
 }
 
+void ParticleMenu::MoveHudCursor(
+	float yawDelta, float pitchDelta,
+	float sensitivityX, float rowsPerPitchDegree, float xLimit)
+{
+	if (!IsOpen() || !std::isfinite(yawDelta) || !std::isfinite(pitchDelta))
+	{
+		return;
+	}
+
+	if (yawDelta > 180.0f)
+	{
+		yawDelta -= 360.0f;
+	}
+	else if (yawDelta < -180.0f)
+	{
+		yawDelta += 360.0f;
+	}
+
+	// Clamp angular spikes from teleports
+	yawDelta = std::clamp(yawDelta, -12.0f, 12.0f);
+	pitchDelta = std::clamp(pitchDelta, -12.0f, 12.0f);
+
+	hudCursorX = std::clamp(hudCursorX - (yawDelta * sensitivityX), -xLimit, xLimit);
+	hudCursorRow = std::clamp(hudCursorRow + (pitchDelta * rowsPerPitchDegree), HudCursorRowMin, HudCursorRowMax);
+
+	hudHoverIndex = ComputeHudHover();
+	if (hudHoverIndex >= 0 && static_cast<std::size_t>(hudHoverIndex) < ItemsPerPage)
+	{
+		hoveredItem = static_cast<std::size_t>(hudHoverIndex);
+	}
+	else
+	{
+		hoveredItem.reset();
+	}
+}
+
+int ParticleMenu::ComputeHudHover() const
+{
+	if (!IsOpen())
+	{
+		return HoverTargetNone;
+	}
+
+	if (std::abs(hudCursorX) > DefaultCursorXLimit)
+	{
+		return HoverTargetNone;
+	}
+
+	if (hudCursorRow < HudCursorRowMin || hudCursorRow > HudCursorRowMax)
+	{
+		return HoverTargetNone;
+	}
+
+	const int row = static_cast<int>(std::floor(hudCursorRow + 0.5f));
+	if (row >= 0 && static_cast<std::size_t>(row) < ItemsPerPage)
+	{
+		return pages[pageIndex][row].enabled ? row : HoverTargetNone;
+	}
+
+	// Row 6 corresponds to footer buttons
+	if (row == static_cast<int>(ItemCount))
+	{
+		if (hudCursorX <= PreviousPageCursorMaxX)
+		{
+			return pageIndex > 0 ? HoverTargetPreviousPage : HoverTargetNone;
+		}
+		if (hudCursorX >= NextPageCursorMinX && hudCursorX <= NextPageCursorMaxX)
+		{
+			return (pageIndex + 1 < pages.size()) ? HoverTargetNextPage : HoverTargetNone;
+		}
+		if (hudCursorX >= CloseMenuCursorMinX)
+		{
+			return HoverTargetCloseMenu;
+		}
+	}
+
+	return HoverTargetNone;
+}
+
+bool ParticleMenu::ChangePage(int delta)
+{
+	if (!IsOpen() || delta == 0)
+	{
+		return false;
+	}
+
+	const int next = static_cast<int>(pageIndex) + delta;
+	if (next < 0 || static_cast<std::size_t>(next) >= pages.size())
+	{
+		return false;
+	}
+
+	pageIndex = static_cast<std::size_t>(next);
+	hudHoverIndex = ComputeHudHover();
+	if (hudHoverIndex >= 0 && static_cast<std::size_t>(hudHoverIndex) < ItemsPerPage)
+	{
+		hoveredItem = static_cast<std::size_t>(hudHoverIndex);
+	}
+	else
+	{
+		hoveredItem.reset();
+	}
+	return true;
+}
+
 std::optional<std::size_t> ParticleMenu::HitTestCursor()
 {
 	if (!IsOpen())
@@ -82,10 +190,12 @@ std::optional<std::size_t> ParticleMenu::HitTestCursor()
 			cursor.y >= item.bounds.top && cursor.y < item.bounds.bottom)
 		{
 			hoveredItem = index;
+			hudHoverIndex = static_cast<int>(index);
 			return index;
 		}
 	}
 	hoveredItem.reset();
+	hudHoverIndex = HoverTargetNone;
 	return std::nullopt;
 }
 
@@ -94,9 +204,11 @@ void ParticleMenu::SetHoveredItem(std::optional<std::size_t> itemIndex)
 	if (!IsOpen() || (itemIndex && (*itemIndex >= ItemsPerPage || !pages[pageIndex][*itemIndex].enabled)))
 	{
 		hoveredItem.reset();
+		hudHoverIndex = HoverTargetNone;
 		return;
 	}
 	hoveredItem = itemIndex;
+	hudHoverIndex = itemIndex ? static_cast<int>(*itemIndex) : HoverTargetNone;
 }
 
 std::optional<MenuSelection> ParticleMenu::ActivateHovered()
@@ -117,6 +229,7 @@ std::optional<MenuSelection> ParticleMenu::ActivateHovered()
 		pageHistory.push_back(pageIndex);
 		pageIndex = *item.targetPage;
 		hoveredItem.reset();
+		hudHoverIndex = HoverTargetNone;
 		return std::nullopt;
 	}
 
@@ -132,6 +245,7 @@ bool ParticleMenu::NavigateBack()
 	pageIndex = pageHistory.back();
 	pageHistory.pop_back();
 	hoveredItem.reset();
+	hudHoverIndex = HoverTargetNone;
 	return true;
 }
 
@@ -142,5 +256,8 @@ void ParticleMenu::Close()
 	pageHistory.clear();
 	pageIndex = 0;
 	cursor = {};
+	hudCursorX = DefaultHudItemX;
+	hudCursorRow = 0.0f;
+	hudHoverIndex = HoverTargetNone;
 }
 } // namespace ow::ui::particle

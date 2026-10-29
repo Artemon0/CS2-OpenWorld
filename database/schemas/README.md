@@ -1,3 +1,5 @@
 # Database schemas
 
-Place versioned PostgreSQL schema definitions here. Each gameplay module owns its schema and changes it through migrations.
+PostgreSQL is the persistent source of truth. The initial core schema is maintained as [001_core.sql](../migrations/001_core.sql), followed by application functions in [002_application_functions.sql](../migrations/002_application_functions.sql). Keep schema changes ordered in `database/migrations/`; gameplay modules should access data through the persistence adapter rather than issuing SQL directly.
+
+The plugin has a runtime-loaded libpq adapter with parameterized character, state, settings, and money operations. After a client is fully connected and Steam-authenticated, player settings load through a bounded background worker; completed results are applied on the game thread only if the same authenticated player session is still in the slot. Settings load does not delay spawn/gameplay, and no arbitrary character is selected automatically. Character selection/state persistence, inventory/economy gameplay flows, repositories for every schema table, and migration execution are not yet wired into gameplay. See [SETUP.md](../../SETUP.md) for role creation and pgAdmin instructions.
