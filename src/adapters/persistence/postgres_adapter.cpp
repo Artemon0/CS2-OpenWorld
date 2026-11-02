@@ -298,6 +298,78 @@ std::string PostgreSQLAdapter::GetLastError() const
 	return impl->lastError;
 }
 
+std::optional<std::string> PostgreSQLAdapter::ResolvePlayerServerRoute(std::string_view environment,
+																	   std::uint64_t steamId,
+																	   std::string_view currentServerId,
+																	   std::string_view lobbyServerId)
+{
+	if (environment.empty() || environment.size() > 64 || HasNul(environment) || steamId == 0 ||
+		steamId > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()) || currentServerId.empty() ||
+		currentServerId.size() > 64 || HasNul(currentServerId) || lobbyServerId.empty() || lobbyServerId.size() > 64 ||
+		HasNul(lobbyServerId))
+	{
+		std::lock_guard lock(impl->mutex);
+		impl->SetError("Player server route parameters are invalid.");
+		return std::nullopt;
+	}
+
+	std::lock_guard lock(impl->mutex);
+	PGresult* result = impl->Execute(
+		"SELECT ow.resolve_player_server_route($1::text, $2::bigint, $3::text, $4::text)",
+		{std::string(environment), std::to_string(steamId), std::string(currentServerId), std::string(lobbyServerId)});
+	if (!result)
+	{
+		return std::nullopt;
+	}
+	std::optional<std::string> serverId;
+	if (impl->api->tuples(result) == 1 && impl->api->fields(result) == 1)
+	{
+		serverId = impl->GetText(result, 0, 0);
+	}
+	impl->api->clear(result);
+	if (!serverId || serverId->empty())
+	{
+		impl->SetError("PostgreSQL did not return the player's assigned server.");
+		return std::nullopt;
+	}
+	return serverId;
+}
+
+std::optional<std::string> PostgreSQLAdapter::AssignPlayerServerRoute(std::string_view environment,
+																	  std::uint64_t steamId,
+																	  std::string_view destinationServerId)
+{
+	if (environment.empty() || environment.size() > 64 || HasNul(environment) || steamId == 0 ||
+		steamId > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()) ||
+		destinationServerId.empty() || destinationServerId.size() > 64 || HasNul(destinationServerId))
+	{
+		std::lock_guard lock(impl->mutex);
+		impl->SetError("Player server route parameters are invalid.");
+		return std::nullopt;
+	}
+
+	std::lock_guard lock(impl->mutex);
+	PGresult* result = impl->Execute(
+		"SELECT ow.assign_player_server_route($1::text, $2::bigint, $3::text)",
+		{std::string(environment), std::to_string(steamId), std::string(destinationServerId)});
+	if (!result)
+	{
+		return std::nullopt;
+	}
+	std::optional<std::string> serverId;
+	if (impl->api->tuples(result) == 1 && impl->api->fields(result) == 1)
+	{
+		serverId = impl->GetText(result, 0, 0);
+	}
+	impl->api->clear(result);
+	if (!serverId || *serverId != destinationServerId)
+	{
+		impl->SetError("PostgreSQL did not confirm the requested player server assignment.");
+		return std::nullopt;
+	}
+	return serverId;
+}
+
 std::optional<std::string> PostgreSQLAdapter::CreateCharacter(std::uint64_t steamId, std::string_view displayName)
 {
 	if (steamId == 0 || steamId > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()) || displayName.empty() ||
@@ -326,6 +398,49 @@ std::optional<std::string> PostgreSQLAdapter::CreateCharacter(std::uint64_t stea
 		impl->SetError("PostgreSQL did not return the created character identifier.");
 	}
 	return id;
+}
+
+std::optional<std::vector<CharacterSummary>> PostgreSQLAdapter::ListCharacters(std::uint64_t steamId)
+{
+	if (steamId == 0 || steamId > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()))
+	{
+		std::lock_guard lock(impl->mutex);
+		impl->SetError("Steam ID must be positive.");
+		return std::nullopt;
+	}
+	std::lock_guard lock(impl->mutex);
+	PGresult* result = impl->Execute(
+		"SELECT character_id::text, display_name FROM ow.characters WHERE steam_id = $1::bigint "
+		"ORDER BY created_at ASC, character_id ASC",
+		{std::to_string(steamId)});
+	if (!result)
+	{
+		return std::nullopt;
+	}
+	if (impl->api->fields(result) != 2)
+	{
+		impl->api->clear(result);
+		impl->SetError("Character list query returned an invalid row shape.");
+		return std::nullopt;
+	}
+
+	std::vector<CharacterSummary> characters;
+	const int rowCount = impl->api->tuples(result);
+	characters.reserve(static_cast<std::size_t>(rowCount));
+	for (int row = 0; row < rowCount; ++row)
+	{
+		const auto characterId = impl->GetText(result, row, 0);
+		const auto displayName = impl->GetText(result, row, 1);
+		if (!characterId || !displayName)
+		{
+			impl->api->clear(result);
+			impl->SetError("Character list contains a NULL field.");
+			return std::nullopt;
+		}
+		characters.push_back({*characterId, *displayName});
+	}
+	impl->api->clear(result);
+	return characters;
 }
 
 std::optional<CharacterData> PostgreSQLAdapter::LoadCharacter(std::string_view characterId)
@@ -381,6 +496,60 @@ std::optional<CharacterData> PostgreSQLAdapter::LoadCharacter(std::string_view c
 	character.stateJson = *fields[3];
 	character.inventoryJson = *fields[5];
 	return character;
+}
+
+std::optional<CharacterData> PostgreSQLAdapter::LoadCharacterForPlayer(std::uint64_t steamId,
+																			 std::string_view characterId)
+{
+	if (steamId == 0 || steamId > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()))
+	{
+		std::lock_guard lock(impl->mutex);
+		impl->SetError("Steam ID must be positive.");
+		return std::nullopt;
+	}
+	std::optional<CharacterData> character = LoadCharacter(characterId);
+	if (character && character->steamId != steamId)
+	{
+		std::lock_guard lock(impl->mutex);
+		impl->SetError("Character does not belong to the authenticated player.");
+		return std::nullopt;
+	}
+	return character;
+}
+
+std::optional<InventoryData> PostgreSQLAdapter::LoadInventory(std::string_view characterId)
+{
+	if (characterId.empty() || HasNul(characterId))
+	{
+		std::lock_guard lock(impl->mutex);
+		impl->SetError("Character identifier is invalid.");
+		return std::nullopt;
+	}
+	std::lock_guard lock(impl->mutex);
+	PGresult* result = impl->Execute(
+		"SELECT revision::text, items::text FROM ow.inventories WHERE character_id = $1::uuid",
+		{std::string(characterId)});
+	if (!result)
+	{
+		return std::nullopt;
+	}
+	if (impl->api->tuples(result) != 1 || impl->api->fields(result) != 2)
+	{
+		impl->api->clear(result);
+		impl->SetError("Inventory was not found or returned an invalid row.");
+		return std::nullopt;
+	}
+	const auto revisionText = impl->GetText(result, 0, 0);
+	const auto itemsJson = impl->GetText(result, 0, 1);
+	impl->api->clear(result);
+	InventoryData inventory;
+	if (!revisionText || !itemsJson || !ParseUnsigned(*revisionText, inventory.revision))
+	{
+		impl->SetError("Inventory row contains invalid data.");
+		return std::nullopt;
+	}
+	inventory.itemsJson = *itemsJson;
+	return inventory;
 }
 
 std::optional<PlayerSettings> PostgreSQLAdapter::LoadPlayerSettings(std::uint64_t steamId)
@@ -462,6 +631,35 @@ bool PostgreSQLAdapter::SaveCharacterState(std::string_view characterId, std::ui
 	if (!revisionText || !ParseUnsigned(*revisionText, newRevision))
 	{
 		impl->SetError("PostgreSQL did not return the new character revision.");
+		return false;
+	}
+	return true;
+}
+
+bool PostgreSQLAdapter::SaveInventory(std::string_view characterId, std::uint64_t expectedRevision,
+									  std::string_view itemsJson, std::uint64_t& newRevision)
+{
+	if (characterId.empty() || HasNul(characterId) || expectedRevision == 0 ||
+		expectedRevision > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()) || HasNul(itemsJson))
+	{
+		std::lock_guard lock(impl->mutex);
+		impl->SetError("Inventory parameters are invalid.");
+		return false;
+	}
+	std::lock_guard lock(impl->mutex);
+	PGresult* result = impl->Execute("SELECT ow.save_inventory($1::uuid, $2::bigint, $3::jsonb)::text",
+									 {std::string(characterId), std::to_string(expectedRevision), std::string(itemsJson)});
+	if (!result)
+	{
+		return false;
+	}
+	const auto revisionText = impl->api->tuples(result) == 1 && impl->api->fields(result) == 1
+								  ? impl->GetText(result, 0, 0)
+								  : std::nullopt;
+	impl->api->clear(result);
+	if (!revisionText || !ParseUnsigned(*revisionText, newRevision))
+	{
+		impl->SetError("PostgreSQL did not return the new inventory revision.");
 		return false;
 	}
 	return true;

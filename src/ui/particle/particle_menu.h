@@ -61,6 +61,7 @@ public:
 		float rowsPerPitchDegree = DefaultCursorRowsPerPitchDegree,
 		float xLimit = DefaultCursorXLimit);
 	int ComputeHudHover() const;
+	bool MoveHudSelection(int delta);
 	bool ChangePage(int delta);
 
 	CursorPosition GetCursorPosition() const { return cursor; }

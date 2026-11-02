@@ -1,0 +1,31 @@
+CS2 Open World - server package
+
+This package root mirrors the contents of a CS2 server's game/csgo directory.
+Copy the addons and cfg folders from this directory into <server>/game/csgo,
+merging with existing folders. Do not copy the package into a nested package
+or game/csgo subdirectory.
+
+The Metamod VDF is included under addons/metamod and loads the plugin binary
+for the platform used to build this package. Install Metamod:Source first.
+
+Before starting the server:
+- Review addons/cs2-openworld/configs/openworld.ini and set the correct server
+  ID, endpoints, map/zones, and other deployment-specific values.
+- Set OW_PG_CONNINFO in the server process environment. Do not put database
+  credentials in openworld.ini. PostgreSQL must be reachable when the plugin
+  loads; Windows servers also need libpq.dll and its dependencies on PATH.
+    Linux servers need the libpq runtime package installed.
+- Follow SETUP.md in the source repository for PostgreSQL schema/setup details.
+
+Optional client key bindings are provided separately at
+client/cfg/ow_keyboard_bindings.cfg. To use them, copy that file to the CS2
+client's game/csgo/cfg directory and run `exec ow_keyboard_bindings` in the
+client console. Back up any existing E and TAB binds first. E runs the stock
++use action and requests the inventory; TAB runs the stock scoreboard action
+and requests the map action. The map action does not open a Panorama panel. If
+a matching overview PNG is supplied, the server caches it locally; display as a
+particle still requires a compiled map-specific Workshop VTEX/VPCF resource.
+Do not copy the client/ folder into the dedicated server.
+
+The package is refreshed by the normal CMake build and is written to
+<build-directory>/package.

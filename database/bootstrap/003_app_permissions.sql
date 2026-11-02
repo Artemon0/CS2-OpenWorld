@@ -1,4 +1,4 @@
--- Step 5: connect to the openworld database as ow_migrator after both migrations.
+-- Connect to the openworld database as ow_migrator after all migrations.
 
 GRANT CONNECT ON DATABASE openworld TO ow_app;
 GRANT USAGE ON SCHEMA ow TO ow_app;
@@ -9,8 +9,11 @@ GRANT SELECT ON ow.characters, ow.inventories, ow.economy_accounts, ow.player_se
 REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA ow FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION ow.create_character(BIGINT, TEXT) TO ow_app;
 GRANT EXECUTE ON FUNCTION ow.save_character_state(UUID, BIGINT, JSONB) TO ow_app;
+GRANT EXECUTE ON FUNCTION ow.save_inventory(UUID, BIGINT, JSONB) TO ow_app;
 GRANT EXECUTE ON FUNCTION ow.save_player_settings(BIGINT, BIGINT, JSONB) TO ow_app;
 GRANT EXECUTE ON FUNCTION ow.apply_money_transaction(UUID, TEXT, BIGINT, TEXT) TO ow_app;
+GRANT EXECUTE ON FUNCTION ow.resolve_player_server_route(TEXT, BIGINT, TEXT, TEXT) TO ow_app;
+GRANT EXECUTE ON FUNCTION ow.assign_player_server_route(TEXT, BIGINT, TEXT) TO ow_app;
 
 ALTER DEFAULT PRIVILEGES FOR ROLE ow_migrator IN SCHEMA ow
     REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC;

@@ -1,6 +1,5 @@
 #include "utils.h"
 
-#include "cs2ac.h"
 #include "iserver.h"
 #include "sdk/cgameresourceserviceserver.h"
 #include "sdk/serversideclient.h"
@@ -11,6 +10,11 @@ static CS2ACUtils s_CS2ACUtils;
 CS2ACUtils* g_pCS2ACUtils = &s_CS2ACUtils;
 static GetLegacyGameEventListener_t* s_GetLegacyGameEventListener = nullptr;
 
+CGameEntitySystem* GameEntitySystem()
+{
+	return interfaces::pGameResourceServiceServer ? interfaces::pGameResourceServiceServer->GetGameEntitySystem() : nullptr;
+}
+
 void utils::Initialize(std::vector<std::string>& missing)
 {
 	if (!interfaces::pEngine || !g_pFullFileSystem)
@@ -20,12 +24,13 @@ void utils::Initialize(std::vector<std::string>& missing)
 
 	CBufferStringGrowable<256> gameDirectory;
 	interfaces::pEngine->GetGameDir(gameDirectory);
-	g_pGameConfig = new CGameConfig(CGameConfig::GetDirectoryName(gameDirectory.Get()), "addons/cs2ac/gamedata/cs2ac.games.txt");
+	const char* const gamedataPath = "addons/cs2-openworld/gamedata/cs2-openworld.games.txt";
+	g_pGameConfig = new CGameConfig(CGameConfig::GetDirectoryName(gameDirectory.Get()), gamedataPath);
 
 	char error[256] {};
 	if (!g_pGameConfig->Init(g_pFullFileSystem, error, sizeof(error)))
 	{
-		missing.emplace_back(std::string("The CS2AC game data could not be read: ") + error + ".");
+		missing.emplace_back(std::string("The OpenWorld game data could not be read: ") + error + ".");
 		return;
 	}
 
@@ -51,14 +56,13 @@ void utils::Cleanup()
 }
 
 CGlobalVars* CS2ACUtils::GetGlobals()
-{
-	auto* server = g_pNetworkServerService ? g_pNetworkServerService->GetIGameServer() : nullptr;
+{	auto* server = g_pNetworkServerService ? g_pNetworkServerService->GetIGameServer() : nullptr;
 	return server ? server->GetGlobals() : nullptr;
 }
 
 const CGlobalVars* CS2ACUtils::GetServerGlobals()
 {
-	return g_CS2AC.simulatingPhysics ? &g_CS2AC.serverGlobals : GetGlobals();
+	return GetGlobals();
 }
 
 CUtlVector<CServerSideClient*>* CS2ACUtils::GetClientList()

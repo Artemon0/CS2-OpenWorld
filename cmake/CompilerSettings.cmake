@@ -1,9 +1,9 @@
-function(template_configure_target target)
+function(ow_configure_target target)
     target_compile_features(${target} PRIVATE cxx_std_20)
 
     target_compile_definitions(${target} PRIVATE
-            ${TEMPLATE_SE_DEFINES}
-            SOURCE_ENGINE=${TEMPLATE_SDK_CODE}
+            ${OW_SE_DEFINES}
+            SOURCE_ENGINE=${OW_SDK_CODE}
             GAME_DLL
             RAD_TELEMETRY_DISABLED
             X64BITS
@@ -14,16 +14,16 @@ function(template_configure_target target)
     target_include_directories(${target} PRIVATE
             "${CMAKE_BINARY_DIR}/versioning"
             "${CMAKE_SOURCE_DIR}"
-            ${TEMPLATE_SDK_INCLUDE_DIRS}
-            "${TEMPLATE_SDK_ROOT}/public/engine"
-            "${TEMPLATE_SDK_ROOT}/public/tier1"
-            "${TEMPLATE_MMS_ROOT}/core"
-            "${TEMPLATE_MMS_ROOT}/third_party/khook/include"
+            ${OW_SDK_INCLUDE_DIRS}
+            "${OW_SDK_ROOT}/public/engine"
+            "${OW_SDK_ROOT}/public/tier1"
+            "${OW_MMS_ROOT}/core"
+            "${OW_MMS_ROOT}/third_party/khook/include"
     )
 
     target_sources(${target} PRIVATE
-            "${TEMPLATE_SDK_ROOT}/tier1/convar.cpp"
-            "${TEMPLATE_SDK_ROOT}/public/tier0/memoverride.cpp"
+            "${OW_SDK_ROOT}/tier1/convar.cpp"
+            "${OW_SDK_ROOT}/public/tier0/memoverride.cpp"
     )
 
     if (MSVC)
@@ -84,7 +84,7 @@ function(template_configure_target target)
                 POSIX
                 _FILE_OFFSET_BITS=64
                 COMPILER_GCC
-                ${TEMPLATE_SDK_LINUX_DEFINES}
+                ${OW_SDK_LINUX_DEFINES}
                 _GLIBCXX_USE_CXX11_ABI=0
         )
 

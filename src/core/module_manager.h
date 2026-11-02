@@ -14,6 +14,7 @@ public:
 	bool RegisterModule(IModule& module);
 	bool StartAll();
 	void StopAll();
+	void Clear();
 	bool IsRunning() const { return startedCount == modules.size(); }
 	const std::string& GetLastError() const { return lastError; }
 

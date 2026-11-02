@@ -107,19 +107,30 @@ public:
 		return m_pEntity->m_EHandle.GetEntryIndex();
 	}
 
+	Vector GetAbsOrigin()
+	{
+		return m_CBodyComponent()->m_pSceneNode()->m_vecAbsOrigin();
+	}
+
 	void* GetVData()
 	{
 		return *reinterpret_cast<void**>(reinterpret_cast<uint8*>(m_nSubclassID()) + sizeof(CUtlStringToken));
 	}
 
+	// Virtual-table helpers below resolve their identifiers from gamedata at
+	// runtime. When gamedata is unavailable (GetOffset returns -1) the call
+	// must be skipped: casting -1 to the vtable index type would read out of
+	// bounds memory and crash the server.
 	bool IsPawn()
 	{
-		return CALL_VIRTUAL(bool, g_pGameConfig->GetOffset("IsEntityPawn"), this);
+		const int offset = g_pGameConfig ? g_pGameConfig->GetOffset("IsEntityPawn") : -1;
+		return offset >= 0 && CALL_VIRTUAL(bool, offset, this);
 	}
 
 	bool IsController()
 	{
-		return CALL_VIRTUAL(bool, g_pGameConfig->GetOffset("IsEntityController"), this);
+		const int offset = g_pGameConfig ? g_pGameConfig->GetOffset("IsEntityController") : -1;
+		return offset >= 0 && CALL_VIRTUAL(bool, offset, this);
 	}
 
 	bool IsAlive()
@@ -135,7 +146,16 @@ public:
 
 	void CollisionRulesChanged()
 	{
-		CALL_VIRTUAL(void, g_pGameConfig->GetOffset("CollisionRulesChanged"), this);
+		if (!g_pGameConfig)
+		{
+			return;
+		}
+		const int offset = g_pGameConfig->GetOffset("CollisionRulesChanged");
+		if (offset < 0)
+		{
+			return;
+		}
+		CALL_VIRTUAL(void, offset, this);
 	}
 
 	int GetTeam()
@@ -145,22 +165,58 @@ public:
 
 	void StartTouch(CBaseEntity* pOther)
 	{
-		CALL_VIRTUAL(bool, g_pGameConfig->GetOffset("StartTouch"), this, pOther);
+		if (!g_pGameConfig)
+		{
+			return;
+		}
+		const int offset = g_pGameConfig->GetOffset("StartTouch");
+		if (offset < 0)
+		{
+			return;
+		}
+		CALL_VIRTUAL(bool, offset, this, pOther);
 	}
 
 	void Touch(CBaseEntity* pOther)
 	{
-		CALL_VIRTUAL(bool, g_pGameConfig->GetOffset("Touch"), this, pOther);
+		if (!g_pGameConfig)
+		{
+			return;
+		}
+		const int offset = g_pGameConfig->GetOffset("Touch");
+		if (offset < 0)
+		{
+			return;
+		}
+		CALL_VIRTUAL(bool, offset, this, pOther);
 	}
 
 	void EndTouch(CBaseEntity* pOther)
 	{
-		CALL_VIRTUAL(bool, g_pGameConfig->GetOffset("EndTouch"), this, pOther);
+		if (!g_pGameConfig)
+		{
+			return;
+		}
+		const int offset = g_pGameConfig->GetOffset("EndTouch");
+		if (offset < 0)
+		{
+			return;
+		}
+		CALL_VIRTUAL(bool, offset, this, pOther);
 	}
 
 	void Teleport(const Vector* newPosition, const QAngle* newAngles, const Vector* newVelocity)
 	{
-		CALL_VIRTUAL(bool, g_pGameConfig->GetOffset("Teleport"), this, newPosition, newAngles, newVelocity);
+		if (!g_pGameConfig)
+		{
+			return;
+		}
+		const int offset = g_pGameConfig->GetOffset("Teleport");
+		if (offset < 0)
+		{
+			return;
+		}
+		CALL_VIRTUAL(bool, offset, this, newPosition, newAngles, newVelocity);
 	}
 
 	void SetGravityScale(float scale)

@@ -1,0 +1,43 @@
+# Local test configuration for one stock CS2 map.
+# Copy to addons/cs2-openworld/configs/openworld.ini and adjust connect.
+
+[core]
+server_id = local-test
+environment = testing
+enabled = true
+
+[world]
+mode = single_map
+map = de_dust2
+
+# Disable PostgreSQL for a standalone map smoke test. The UI adapters remain
+# independently configurable; set any of these to false to disable them.
+[adapters]
+postgresql = false
+panorama = true
+hud = true
+input = true
+map_overview = true
+particle_menu = true
+
+# Database-backed modules default to disabled when PostgreSQL is off.
+[modules]
+characters = false
+economy = false
+inventory = false
+transfer = false
+
+[persistence]
+provider = none
+connection_env =
+
+[cache]
+provider = memory
+shared_provider = none
+redis_key_prefix = openworld:testing:
+
+[servers.local-test]
+connect = 127.0.0.1:27015
+map = de_dust2
+max_players = 16
+workshop_collection_id =

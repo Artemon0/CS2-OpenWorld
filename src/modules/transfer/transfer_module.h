@@ -24,5 +24,6 @@ private:
 	ow::core::ServiceRegistry& serviceRegistry;
 	ow::core::EventBus& eventBus;
 	ow::transfer::TransferManager transferManager;
+	bool serviceRegistered {};
 };
 } // namespace ow::modules

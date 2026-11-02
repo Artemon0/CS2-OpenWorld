@@ -16,11 +16,11 @@ using UTIL_RemoveFn = void (*)(CEntityInstance* pEntity);
 CreateEntityByNameFn fnCreateEntityByName = nullptr;
 DispatchSpawnFn fnDispatchSpawn = nullptr;
 UTIL_RemoveFn fnUTIL_Remove = nullptr;
-bool initialized = false;
+bool signaturesResolved = false;
 
 void ResolveSignatures()
 {
-	if (!modules::server || initialized)
+	if (!modules::server || signaturesResolved)
 	{
 		return;
 	}
@@ -63,23 +63,23 @@ void ResolveSignatures()
 		modules::server->FindSignature(sigRemove, sizeof(sigRemove) - 1, sigError));
 #endif
 
-	initialized = true;
+	signaturesResolved = true;
 }
 } // namespace
 
 bool EntitySpawner::Initialize()
 {
 	ResolveSignatures();
-	return fnCreateEntityByName != nullptr;
+	return IsReady();
 }
 
 bool EntitySpawner::IsReady()
 {
-	if (!initialized)
+	if (!signaturesResolved)
 	{
 		ResolveSignatures();
 	}
-	return fnCreateEntityByName != nullptr;
+	return fnCreateEntityByName && fnDispatchSpawn && fnUTIL_Remove;
 }
 
 CParticleSystem* EntitySpawner::SpawnParticleSystem(
@@ -119,16 +119,7 @@ CParticleSystem* EntitySpawner::SpawnParticleSystem(
 	// Teleport to starting location and orientation
 	particle->Teleport(&origin, &angles, nullptr);
 
-	// Dispatch entity spawn
-	if (fnDispatchSpawn)
-	{
-		fnDispatchSpawn(particle, nullptr);
-	}
-	else
-	{
-		// Fallback to virtual Spawn (vtable index 10)
-		particle->Spawn(nullptr);
-	}
+	fnDispatchSpawn(particle, nullptr);
 
 	return particle;
 }
@@ -143,11 +134,6 @@ void EntitySpawner::RemoveEntity(CEntityInstance* pEntity)
 	if (fnUTIL_Remove)
 	{
 		fnUTIL_Remove(pEntity);
-	}
-	else
-	{
-		// Fallback to calling UpdateOnRemove and clearing state
-		pEntity->UpdateOnRemove();
 	}
 }
 } // namespace ow::ui::particle

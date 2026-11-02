@@ -4,12 +4,32 @@
 [core]
 server_id = server-01
 environment = production
-enabled = 1
+enabled = true
+
+[world]
+mode = cluster
+
+[routing]
+enforce_server_affinity = true
+lobby_server_id = server-01
+
+[adapters]
+postgresql = true
+panorama = true
+hud = true
+input = true
+map_overview = true
+particle_menu = true
+
+[modules]
+characters = true
+economy = true
+inventory = true
+transfer = true
 
 [persistence]
 provider = postgresql
 connection_env = OW_PG_CONNINFO
-connect_timeout = 5
 
 [cache]
 provider = memory

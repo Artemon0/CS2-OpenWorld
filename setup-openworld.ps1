@@ -93,4 +93,4 @@ $json = ConvertTo-Json -InputObject $metadata -Depth 3
     [System.Text.UTF8Encoding]::new($false)
 )
 
-Write-Host "Created $metadataPath"
+Write-Host "Created OpenWorld plugin metadata at $metadataPath"

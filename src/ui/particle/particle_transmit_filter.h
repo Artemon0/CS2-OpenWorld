@@ -12,7 +12,7 @@ public:
 	static bool InstallHook(ISource2GameEntities* pGameEntities);
 	static void RemoveHook(ISource2GameEntities* pGameEntities);
 
-	static void RegisterMenuEntity(int entityIndex, int ownerPlayerSlot);
+	static void RegisterMenuEntity(CBaseEntity* entity, int ownerPlayerSlot);
 	static void UnregisterMenuEntity(int entityIndex);
 	static void ClearPlayerEntities(int ownerPlayerSlot);
 	static void ClearAll();

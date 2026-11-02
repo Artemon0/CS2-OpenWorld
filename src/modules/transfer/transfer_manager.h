@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -49,17 +50,38 @@ struct TransferRecord
 	std::chrono::system_clock::time_point expiresAt;
 };
 
-class TransferManager
+class ITransferService
 {
 public:
-	bool Request(TransferRecord transfer, bool steamAuthenticated, std::chrono::system_clock::time_point now);
-	bool Advance(const std::string& transferId, TransferState next, std::chrono::system_clock::time_point now);
-	bool Fail(const std::string& transferId, std::chrono::system_clock::time_point now);
-	bool Cancel(const std::string& transferId, std::chrono::system_clock::time_point now);
-	std::size_t Expire(std::chrono::system_clock::time_point now);
-	std::size_t PruneTerminal(std::chrono::system_clock::time_point now, std::chrono::seconds retention);
-	std::optional<TransferRecord> Find(const std::string& transferId) const;
-	std::vector<TransferRecord> GetPendingForPlayer(std::uint64_t steamId) const;
+	virtual ~ITransferService() = default;
+
+	virtual bool Request(TransferRecord transfer, bool steamAuthenticated,
+						 std::chrono::system_clock::time_point now) = 0;
+	virtual bool Advance(const std::string& transferId, TransferState next,
+					 std::chrono::system_clock::time_point now) = 0;
+	virtual bool Fail(const std::string& transferId, std::chrono::system_clock::time_point now) = 0;
+	virtual bool Cancel(const std::string& transferId, std::chrono::system_clock::time_point now) = 0;
+	virtual std::size_t Expire(std::chrono::system_clock::time_point now) = 0;
+	virtual std::size_t PruneTerminal(std::chrono::system_clock::time_point now,
+								  std::chrono::seconds retention) = 0;
+	virtual std::optional<TransferRecord> Find(const std::string& transferId) const = 0;
+	virtual std::vector<TransferRecord> GetPendingForPlayer(std::uint64_t steamId) const = 0;
+};
+
+class TransferManager final : public ITransferService
+{
+public:
+	bool Request(TransferRecord transfer, bool steamAuthenticated,
+				 std::chrono::system_clock::time_point now) override;
+	bool Advance(const std::string& transferId, TransferState next,
+				 std::chrono::system_clock::time_point now) override;
+	bool Fail(const std::string& transferId, std::chrono::system_clock::time_point now) override;
+	bool Cancel(const std::string& transferId, std::chrono::system_clock::time_point now) override;
+	std::size_t Expire(std::chrono::system_clock::time_point now) override;
+	std::size_t PruneTerminal(std::chrono::system_clock::time_point now,
+							  std::chrono::seconds retention) override;
+	std::optional<TransferRecord> Find(const std::string& transferId) const override;
+	std::vector<TransferRecord> GetPendingForPlayer(std::uint64_t steamId) const override;
 
 private:
 	static bool IsTerminal(TransferState state);

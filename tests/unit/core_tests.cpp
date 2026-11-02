@@ -1,24 +1,31 @@
-#include "core/event_bus.h"
+#include "adapters/cs2/client_redirector.h"
+#include "adapters/persistence/player_settings_cache.h"
+#include "adapters/persistence/postgres_adapter.h"
 #include "core/cluster_config.h"
+#include "core/event_bus.h"
 #include "core/module_manager.h"
 #include "core/service_registry.h"
-#include "adapters/cs2/client_redirector.h"
-#include "adapters/persistence/postgres_adapter.h"
-#include "adapters/persistence/player_settings_cache.h"
+#include "modules/persistence/player_character_worker.h"
+#include "modules/persistence/player_route_worker.h"
 #include "modules/persistence/player_settings_worker.h"
 #ifdef OW_ENABLE_CACHE_FALLBACK
 #include "modules/persistence/cache_manager.h"
 #include "modules/persistence/player_warmup.h"
 #include "modules/persistence/redis_cache.h"
 #endif
+#include "modules/economy/economy_system.h"
+#include "modules/inventory/inventory_system.h"
 #include "modules/transfer/transfer_manager.h"
+#include "modules/transfer/transfer_module.h"
 
-#include <chrono>
+#include <algorithm>
 #include <atomic>
 #include <charconv>
+#include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 #include <future>
 #include <string>
 #include <string_view>
@@ -91,16 +98,15 @@ ow::transfer::TransferRecord MakeTransfer(std::string id, std::string idempotenc
 bool TestModuleManager()
 {
 	std::vector<std::string> calls;
-	TestModule dependent{"dependent", {"base"}, &calls};
-	TestModule base{"base", {}, &calls};
+	TestModule dependent {"dependent", {"base"}, &calls};
+	TestModule base {"base", {}, &calls};
 	ow::core::ModuleManager manager;
-	if (!manager.RegisterModule(dependent) || !manager.RegisterModule(base) || !manager.StartAll() ||
-		!manager.IsRunning())
+	if (!manager.RegisterModule(dependent) || !manager.RegisterModule(base) || !manager.StartAll() || !manager.IsRunning())
 	{
 		return false;
 	}
 
-	const std::vector<std::string> expected{"init:base", "start:base", "init:dependent", "start:dependent"};
+	const std::vector<std::string> expected {"init:base", "start:base", "init:dependent", "start:dependent"};
 	if (calls != expected)
 	{
 		return false;
@@ -112,13 +118,25 @@ bool TestModuleManager()
 		return false;
 	}
 
+	std::vector<std::string> reloadCalls;
+	TestModule reloaded {"reloaded", {}, &reloadCalls};
+	manager.Clear();
+	if (!manager.RegisterModule(reloaded) || !manager.StartAll() || !manager.IsRunning())
+	{
+		return false;
+	}
+	manager.Clear();
+	if (reloadCalls.size() != 3 || reloadCalls.back() != "stop:reloaded")
+	{
+		return false;
+	}
+
 	std::vector<std::string> failedCalls;
-	TestModule failing{"failing", {}, &failedCalls};
+	TestModule failing {"failing", {}, &failedCalls};
 	failing.startSucceeds = false;
 	ow::core::ModuleManager failingManager;
-	return failingManager.RegisterModule(failing) && !failingManager.StartAll() && !failingManager.IsRunning() &&
-		   failingManager.GetLastError() == "Module start failed: failing" && failedCalls.size() == 3 &&
-		   failedCalls.back() == "stop:failing";
+	return failingManager.RegisterModule(failing) && !failingManager.StartAll() && !failingManager.IsRunning()
+		   && failingManager.GetLastError() == "Module start failed: failing" && failedCalls.size() == 3 && failedCalls.back() == "stop:failing";
 }
 
 bool TestEventBus()
@@ -238,10 +256,9 @@ bool TestPlayerWarmup()
 	MemoryCache staleCache;
 	AsyncCacheWarmer staleWarmer(staleCache, 1, 4);
 	PlayerWarmupPlan stalePlan;
-	if (!stalePlan.AddRequired("player:42:stale-critical", 4, std::chrono::seconds(30), [] {
-			return std::optional<CacheLoadValue>{{"outdated", 3}};
-		}) ||
-		!stalePlan.Start(staleWarmer))
+	if (!stalePlan.AddRequired("player:42:stale-critical", 4, std::chrono::seconds(30),
+							   [] { return std::optional<CacheLoadValue> {{"outdated", 3}}; })
+		|| !stalePlan.Start(staleWarmer))
 	{
 		return false;
 	}
@@ -260,6 +277,7 @@ bool TestClusterConfig()
 [core]
 server_id = a
 environment = test
+enabled = 1
 [persistence]
 provider = postgresql
 connection_env = OW_PG_TEST
@@ -275,10 +293,14 @@ redis_key_prefix = openworld:test:
 redis_timeout_ms = 250
 redis_max_value_bytes = 1048576
 redis_tls = false
+[routing]
+enforce_server_affinity = true
+lobby_server_id = a
 [servers.a]
 connect = 127.0.0.1:27015
 map = map_a
 max_players = 32
+workshop_collection_id =
 [servers.b]
 connect = server.example.net:27016
 map = map_b
@@ -292,7 +314,7 @@ max_x = 0
 max_y = 100
 [zones.east]
 server_id = b
-map = map_a
+map = map_b
 min_x = 0
 min_y = -100
 max_x = 100
@@ -300,21 +322,32 @@ max_y = 100
 )";
 	std::string error;
 	auto config = ow::core::ClusterConfig::Parse(validConfig, &error);
-	if (!config || !error.empty() || !config->CurrentServer() ||
-		!config->FindServer("b") || config->FindServer("b")->connect != "server.example.net:27016" ||
-		config->FindServer("missing"))
+	if (!config || !error.empty() || !config->CurrentServer() || !config->enabled || config->worldMode != ow::core::WorldMode::Cluster
+		|| !config->adapters.postgresql || !config->adapters.panorama || !config->adapters.hud || !config->adapters.input
+		|| !config->adapters.mapOverview || !config->modules.characters || !config->modules.economy || !config->modules.inventory
+		|| !config->modules.transfer || !config->routing.enforceServerAffinity ||
+		config->routing.lobbyServerId != "a" || !config->FindServer("b") ||
+		config->FindServer("b")->connect != "server.example.net:27016"
+		|| config->FindServer("missing"))
 	{
 		return false;
 	}
 	const auto* westZone = config->FindZone("map_a", -50, 0);
-	const auto* eastZone = config->FindZone("map_a", 0, 0);
+	const auto* eastZone = config->FindZone("map_b", 0, 0);
 	if (!westZone || !eastZone || westZone->serverId != "a" || eastZone->serverId != "b" ||
-		config->FindZone("map_a", 100, 0) != nullptr)
+		config->FindZone("map_a", 0, 0) != nullptr || config->FindZone("map_a", 100, 0) != nullptr)
 	{
 		return false;
 	}
-	if (config->redisHost != "127.0.0.1" || config->redisPort != 6379 || config->redisDatabase != 1 ||
-		config->redisKeyPrefix != "openworld:test:" || config->redisPasswordEnv != "OW_REDIS_PASSWORD")
+	const auto* transitionZone = config->FindTransitionZone("map_a", "a", 0, 0);
+	if (config->FindTransitionZone("map_a", "a", -50, 0) != nullptr || !transitionZone ||
+		transitionZone->serverId != "b" || config->FindTransitionZone("missing_map", "a", 0, 0) != nullptr ||
+		config->FindTransitionZone("map_a", "a", 100, 0) != nullptr)
+	{
+		return false;
+	}
+	if (config->redisHost != "127.0.0.1" || config->redisPort != 6379 || config->redisDatabase != 1 || config->redisKeyPrefix != "openworld:test:"
+		|| config->redisPasswordEnv != "OW_REDIS_PASSWORD")
 	{
 		return false;
 	}
@@ -332,12 +365,112 @@ max_y = 1
 	{
 		return false;
 	}
+	std::string unknownLobbyConfig = validConfig;
+	const std::string configuredLobby = "lobby_server_id = a";
+	const std::size_t lobbyPosition = unknownLobbyConfig.find(configuredLobby);
+	unknownLobbyConfig.replace(lobbyPosition, configuredLobby.size(), "lobby_server_id = missing");
+	if (ow::core::ClusterConfig::Parse(unknownLobbyConfig, &error) || error.empty())
+	{
+		return false;
+	}
 
 	std::string tlsConfig = validConfig;
 	const std::string disabledTls = "redis_tls = false";
 	const std::size_t tlsPosition = tlsConfig.find(disabledTls);
 	tlsConfig.replace(tlsPosition, disabledTls.size(), "redis_tls = true");
-	return !ow::core::ClusterConfig::Parse(tlsConfig, &error) && error.find("TLS") != std::string::npos;
+	if (ow::core::ClusterConfig::Parse(tlsConfig, &error) || error.find("TLS") == std::string::npos)
+	{
+		return false;
+	}
+
+	const std::string singleMapConfig = R"(
+[core]
+server_id = local
+environment = test
+enabled = true
+[persistence]
+provider = none
+connection_env =
+[cache]
+provider = memory
+shared_provider = none
+redis_key_prefix = openworld:test:
+[world]
+mode = single_map
+map = de_dust2
+[adapters]
+postgresql = false
+panorama = true
+hud = false
+input = true
+map_overview = false
+[modules]
+characters = false
+economy = false
+inventory = false
+transfer = false
+[servers.local]
+connect = 127.0.0.1:27015
+map = de_dust2
+max_players = 16
+workshop_collection_id =
+)";
+	auto singleMap = ow::core::ClusterConfig::Parse(singleMapConfig, &error);
+	if (!singleMap || !error.empty() || singleMap->worldMode != ow::core::WorldMode::SingleMap || singleMap->worldMap != "de_dust2"
+		|| !singleMap->CurrentServer() || !singleMap->zones.empty() || singleMap->adapters.postgresql || singleMap->adapters.hud
+		|| singleMap->adapters.mapOverview || !singleMap->adapters.panorama || !singleMap->adapters.input || singleMap->modules.characters
+		|| singleMap->modules.economy || singleMap->modules.inventory || singleMap->modules.transfer)
+	{
+		return false;
+	}
+
+	std::string mismatchedMapConfig = singleMapConfig;
+	const std::string matchingMap = "map = de_dust2";
+	const std::size_t serverMapPosition = mismatchedMapConfig.rfind(matchingMap);
+	mismatchedMapConfig.replace(serverMapPosition, matchingMap.size(), "map = de_mirage");
+	if (ow::core::ClusterConfig::Parse(mismatchedMapConfig, &error) || error.empty())
+	{
+		return false;
+	}
+
+	std::string unsafeMapConfig = singleMapConfig;
+	const std::string safeWorldMap = "map = de_dust2";
+	const std::size_t worldMapPosition = unsafeMapConfig.find(safeWorldMap);
+	unsafeMapConfig.replace(worldMapPosition, safeWorldMap.size(), "map = ../de_dust2");
+	if (ow::core::ClusterConfig::Parse(unsafeMapConfig, &error) || error.empty())
+	{
+		return false;
+	}
+
+	std::string invalidPersistenceConfig = singleMapConfig;
+	const std::string disabledEconomy = "economy = false";
+	const std::size_t economyPosition = invalidPersistenceConfig.find(disabledEconomy);
+	invalidPersistenceConfig.replace(economyPosition, disabledEconomy.size(), "economy = true");
+	return !ow::core::ClusterConfig::Parse(invalidPersistenceConfig, &error) && !error.empty();
+}
+
+bool TestConfigExamples()
+{
+	const std::filesystem::path configDirectory = std::filesystem::path(OW_TEST_SOURCE_DIR) / "configs";
+	std::string error;
+	const auto clusterPath = configDirectory / "openworld.ini.example";
+	const auto cluster = ow::core::ClusterConfig::Load(clusterPath.string(), &error);
+	if (!cluster || !error.empty() || cluster->worldMode != ow::core::WorldMode::Cluster || !cluster->adapters.postgresql ||
+		!cluster->modules.characters || !cluster->modules.transfer || !cluster->routing.enforceServerAffinity ||
+		cluster->routing.lobbyServerId != "server-01")
+	{
+		std::fprintf(stderr, "Could not load %s: %s\n", clusterPath.string().c_str(), error.c_str());
+		return false;
+	}
+	const auto singleMapPath = configDirectory / "openworld.single-map.ini.example";
+	const auto singleMap = ow::core::ClusterConfig::Load(singleMapPath.string(), &error);
+	if (!singleMap || !error.empty() || singleMap->worldMode != ow::core::WorldMode::SingleMap ||
+		singleMap->worldMap != "de_dust2" || singleMap->adapters.postgresql || singleMap->modules.inventory)
+	{
+		std::fprintf(stderr, "Could not load %s: %s\n", singleMapPath.string().c_str(), error.c_str());
+		return false;
+	}
+	return true;
 }
 
 #ifdef OW_ENABLE_CACHE_FALLBACK
@@ -348,8 +481,7 @@ bool TestRedisCacheFailures()
 	config.port = 1;
 	config.timeout = std::chrono::milliseconds(100);
 	ow::persistence::RedisCache cache(std::move(config));
-	return !cache.Ping() && !cache.GetLastError().empty() &&
-		   !cache.Put("key", "value", 1, std::chrono::seconds(1));
+	return !cache.Ping() && !cache.GetLastError().empty() && !cache.Put("key", "value", 1, std::chrono::seconds(1));
 }
 
 bool TestRedisCacheIntegrationWhenConfigured()
@@ -362,8 +494,7 @@ bool TestRedisCacheIntegrationWhenConfigured()
 	unsigned int port {};
 	const std::string portValue(portText);
 	const auto converted = std::from_chars(portValue.data(), portValue.data() + portValue.size(), port);
-	if (converted.ec != std::errc {} || converted.ptr != portValue.data() + portValue.size() || port == 0 ||
-		port > 65535)
+	if (converted.ec != std::errc {} || converted.ptr != portValue.data() + portValue.size() || port == 0 || port > 65535)
 	{
 		return false;
 	}
@@ -403,6 +534,10 @@ bool TestPostgreSQLAdapterInputValidation()
 	}
 	std::uint64_t newRevision {};
 	return !adapter.SaveCharacterState("", 0, "{}", newRevision) && !adapter.GetLastError().empty() &&
+		   !adapter.ListCharacters(0).has_value() && !adapter.GetLastError().empty() &&
+		   !adapter.LoadCharacterForPlayer(0, "character-1").has_value() && !adapter.GetLastError().empty() &&
+		   !adapter.LoadInventory("").has_value() && !adapter.GetLastError().empty() &&
+		   !adapter.SaveInventory("", 0, "[]", newRevision) && !adapter.GetLastError().empty() &&
 		   !adapter.SavePlayerSettings(0, 0, "{}", newRevision) && !adapter.GetLastError().empty() &&
 		   !adapter.ApplyMoneyTransaction("", "", 0, "").has_value() && !adapter.GetLastError().empty();
 }
@@ -509,6 +644,66 @@ bool TestPlayerSettingsWorker()
 		   loaderCalls.load() == 2;
 }
 
+bool TestPlayerCharacterWorker()
+{
+	using namespace std::chrono_literals;
+	std::atomic<int> loaderCalls {};
+	ow::persistence::PlayerCharacterWorker worker(
+		[&loaderCalls](const ow::persistence::PlayerCharacterJob& job,
+					   ow::persistence::PlayerCharacterResult& result) {
+			++loaderCalls;
+			std::this_thread::sleep_for(5ms);
+			if (job.operation == ow::persistence::PlayerCharacterOperation::List)
+			{
+				result.characters.push_back({"character-1", "Test Character"});
+				return;
+			}
+			ow::adapters::CharacterData character;
+			character.characterId = job.operation == ow::persistence::PlayerCharacterOperation::Create ? "created-id" : job.value;
+			character.steamId = job.steamId;
+			character.displayName = job.operation == ow::persistence::PlayerCharacterOperation::Create ? job.value : "Loaded";
+			result.character = std::move(character);
+		},
+		3);
+	if (!worker.RequestList(2001, 31) || !worker.RequestCreate(2002, 31, "New Hero") ||
+		!worker.RequestLoad(2003, 31, "character-1") || worker.RequestCreate(2004, 31, "") ||
+		worker.RequestLoad(2005, 31, "") || worker.RequestList(0, 31) || worker.RequestList(2006, 31))
+	{
+		return false;
+	}
+
+	std::vector<ow::persistence::PlayerCharacterResult> results;
+	const auto deadline = std::chrono::steady_clock::now() + 1s;
+	while (std::chrono::steady_clock::now() < deadline && results.size() < 3)
+	{
+		if (auto result = worker.TryTakeResult())
+		{
+			results.push_back(std::move(*result));
+		}
+		else
+		{
+			std::this_thread::sleep_for(1ms);
+		}
+	}
+	if (results.size() != 3 || loaderCalls.load() != 3)
+	{
+		return false;
+	}
+	const auto findResult = [&results](std::uint64_t requestId) -> const ow::persistence::PlayerCharacterResult* {
+		const auto result = std::find_if(results.begin(), results.end(), [requestId](const auto& entry) {
+			return entry.requestId == requestId;
+		});
+		return result == results.end() ? nullptr : &*result;
+	};
+	const auto* listed = findResult(2001);
+	const auto* created = findResult(2002);
+	const auto* loaded = findResult(2003);
+	return listed && listed->steamId == 31 && listed->characters.size() == 1 &&
+		   listed->characters[0].characterId == "character-1" && created && created->character &&
+		   created->character->characterId == "created-id" && created->character->displayName == "New Hero" && loaded &&
+		   loaded->character && loaded->character->characterId == "character-1" && loaded->error.empty();
+}
+
 bool TestPostgreSQLIntegrationWhenConfigured()
 {
 	const char* connectionInfo = std::getenv("OW_TEST_PG_CONNINFO");
@@ -533,6 +728,14 @@ bool TestPostgreSQLIntegrationWhenConfigured()
 		std::fprintf(stderr, "PostgreSQL character creation failed: %s\n", adapter.GetLastError().c_str());
 		return false;
 	}
+	const auto characters = adapter.ListCharacters(steamId);
+	const auto ownedCharacter = adapter.LoadCharacterForPlayer(steamId, *characterId);
+	if (!characters || characters->size() != 1 || characters->front().characterId != *characterId ||
+		!ownedCharacter || adapter.LoadCharacterForPlayer(steamId + 1, *characterId))
+	{
+		std::fprintf(stderr, "PostgreSQL character ownership/list check failed: %s\n", adapter.GetLastError().c_str());
+		return false;
+	}
 	const auto defaultSettings = adapter.LoadPlayerSettings(steamId);
 	if (!defaultSettings || defaultSettings->revision != 0 || defaultSettings->settingsJson != "{}")
 	{
@@ -543,6 +746,26 @@ bool TestPostgreSQLIntegrationWhenConfigured()
 	if (!character || character->steamId != steamId || character->revision != 1 || character->balance != 0)
 	{
 		std::fprintf(stderr, "PostgreSQL character load failed: %s\n", adapter.GetLastError().c_str());
+		return false;
+	}
+
+	auto inventory = adapter.LoadInventory(*characterId);
+	if (!inventory || inventory->revision != 1 || inventory->itemsJson != "[]")
+	{
+		std::fprintf(stderr, "PostgreSQL default inventory load failed: %s\n", adapter.GetLastError().c_str());
+		return false;
+	}
+	std::uint64_t inventoryRevision {};
+	if (!adapter.SaveInventory(*characterId, inventory->revision, R"([{"item":"integration_test"}])", inventoryRevision) ||
+		inventoryRevision != 2 || adapter.SaveInventory(*characterId, inventory->revision, "[]", inventoryRevision))
+	{
+		std::fprintf(stderr, "PostgreSQL inventory save/revision check failed: %s\n", adapter.GetLastError().c_str());
+		return false;
+	}
+	inventory = adapter.LoadInventory(*characterId);
+	if (!inventory || inventory->revision != 2 || inventory->itemsJson.find("integration_test") == std::string::npos)
+	{
+		std::fprintf(stderr, "PostgreSQL inventory reload failed: %s\n", adapter.GetLastError().c_str());
 		return false;
 	}
 
@@ -568,11 +791,104 @@ bool TestPostgreSQLIntegrationWhenConfigured()
 		return false;
 	}
 
+	ow::core::ServiceRegistry registry;
+	ow::economy::EconomySystem economy(registry, &adapter);
+	ow::core::ModuleManager modules;
+	if (!modules.RegisterModule(economy) || !modules.StartAll())
+	{
+		return false;
+	}
+	auto* service = registry.Get<ow::economy::IEconomyService>();
+	const auto wallet = service ? service->LoadWallet(*characterId) : std::nullopt;
 	const std::string idempotencyKey = "ow-core-tests:" + *characterId;
-	const auto credited = adapter.ApplyMoneyTransaction(*characterId, idempotencyKey, 25, "Integration test");
-	const auto duplicate = adapter.ApplyMoneyTransaction(*characterId, idempotencyKey, 25, "Integration test");
-	return credited && duplicate && credited->balance == 25 && !credited->duplicate && duplicate->balance == 25 &&
-		   duplicate->duplicate;
+	const auto credited = service ? service->ApplyTransaction(*characterId, idempotencyKey, 25, "Integration test")
+								 : std::nullopt;
+	const auto duplicate = service ? service->ApplyTransaction(*characterId, idempotencyKey, 25, "Integration test")
+								  : std::nullopt;
+		modules.StopAll();
+	return wallet && wallet->balance == 0 && credited && duplicate && credited->balance == 25 && !credited->duplicate &&
+		   duplicate->balance == 25 && duplicate->duplicate;
+}
+
+bool TestTransferModuleServiceLifecycle()
+{
+	using namespace ow::transfer;
+	ow::core::ServiceRegistry registry;
+	ow::core::EventBus events;
+	ow::modules::TransferModule module(registry, events);
+	ow::core::ModuleManager modules;
+	if (!modules.RegisterModule(module) || registry.Get<ITransferService>() || !modules.StartAll())
+	{
+		return false;
+	}
+
+	ITransferService* service = registry.Get<ITransferService>(1);
+	const auto now = std::chrono::system_clock::now();
+	const auto transfer = MakeTransfer("module-transfer", "module-request", now);
+	if (!service || registry.Get<ITransferService>(2) || !module.Start() ||
+		!service->Request(transfer, true, now) || !service->Find("module-transfer"))
+	{
+		return false;
+	}
+	modules.StopAll();
+	if (registry.Get<ITransferService>())
+	{
+		return false;
+	}
+
+	TransferManager incumbent;
+	if (!registry.Register<ITransferService>(incumbent, 1))
+	{
+		return false;
+	}
+	ow::modules::TransferModule conflictingModule(registry, events);
+	ow::core::ModuleManager conflictingModules;
+	return conflictingModules.RegisterModule(conflictingModule) && !conflictingModules.StartAll() &&
+		   registry.Get<ITransferService>() == &incumbent &&
+		   registry.Unregister<ITransferService>(incumbent);
+}
+
+bool TestEconomyModuleServiceLifecycle()
+{
+	ow::core::ServiceRegistry registry;
+	ow::adapters::PostgreSQLAdapter persistence;
+	ow::economy::EconomySystem economy(registry, &persistence);
+	ow::core::ModuleManager modules;
+	if (!modules.RegisterModule(economy) || registry.Get<ow::economy::IEconomyService>() || !modules.StartAll())
+	{
+		return false;
+	}
+
+	auto* service = registry.Get<ow::economy::IEconomyService>();
+	if (!service || registry.Get<ow::economy::IEconomyService>(2) || service->LoadWallet("").has_value() ||
+		service->GetLastError().empty() || service->ApplyTransaction("", "", 0, "").has_value())
+	{
+		return false;
+	}
+	modules.StopAll();
+	return registry.Get<ow::economy::IEconomyService>() == nullptr;
+}
+
+bool TestInventoryModuleServiceLifecycle()
+{
+	ow::core::ServiceRegistry registry;
+	ow::adapters::PostgreSQLAdapter persistence;
+	ow::inventory::InventorySystem inventory(registry, &persistence);
+	ow::core::ModuleManager modules;
+	if (!modules.RegisterModule(inventory) || registry.Get<ow::inventory::IInventoryService>() || !modules.StartAll())
+	{
+		return false;
+	}
+
+	auto* service = registry.Get<ow::inventory::IInventoryService>();
+	std::uint64_t revision {};
+	if (!service || registry.Get<ow::inventory::IInventoryService>(2) || service->Load("").has_value() ||
+		service->GetLastError().empty() || service->Save("", 0, "[]", revision))
+	{
+		return false;
+	}
+	modules.StopAll();
+	return registry.Get<ow::inventory::IInventoryService>() == nullptr;
 }
 
 bool TestTransferStateMachine()
@@ -607,22 +923,64 @@ bool TestTransferStateMachine()
 		   manager.GetPendingForPlayer(completed->snapshot.steamId).empty();
 }
 
+bool TestPlayerRouteWorker()
+{
+	ow::persistence::PlayerRouteWorker worker(
+		[](const ow::persistence::PlayerRouteJob& job, ow::persistence::PlayerRouteResult& result)
+		{
+			result.serverId = job.operation == ow::persistence::PlayerRouteOperation::Resolve
+				? job.lobbyServerId
+				: job.destinationServerId;
+		});
+	constexpr std::uint64_t steamId = 76561198000000000ull;
+	if (!worker.RequestResolve(1, steamId, "production", "west", "lobby") ||
+		worker.RequestResolve(2, 0, "production", "west", "lobby") ||
+		worker.RequestResolve(3, steamId, "production", "", "lobby"))
+	{
+		return false;
+	}
+
+	auto takeResult = [&worker]() -> std::optional<ow::persistence::PlayerRouteResult> {
+		const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+		while (std::chrono::steady_clock::now() < deadline)
+		{
+			if (auto result = worker.TryTakeResult())
+			{
+				return result;
+			}
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
+		}
+		return std::nullopt;
+	};
+
+	const auto resolved = takeResult();
+	if (!resolved || resolved->requestId != 1 || resolved->steamId != steamId ||
+		resolved->operation != ow::persistence::PlayerRouteOperation::Resolve ||
+		resolved->serverId != "lobby" || !resolved->error.empty())
+	{
+		return false;
+	}
+	if (!worker.RequestAssign(4, steamId, "production", "west"))
+	{
+		return false;
+	}
+	const auto assigned = takeResult();
+	return assigned && assigned->requestId == 4 && assigned->steamId == steamId &&
+		   assigned->operation == ow::persistence::PlayerRouteOperation::Assign &&
+		   assigned->serverId == "west" && assigned->error.empty() &&
+		   !worker.RequestAssign(5, steamId, "production", std::string_view("bad\0server", 10));
+}
+
 bool TestRedirectEndpointValidation()
 {
 	using ow::adapters::ClientRedirector;
-	return ClientRedirector::IsValidEndpoint("127.0.0.1:27015") &&
-		   ClientRedirector::IsValidEndpoint("server.example.net:65535") &&
-		   ClientRedirector::IsValidEndpoint("[2001:db8::1]:27015") &&
-		   ClientRedirector::IsValidEndpoint("[::1]:27015") &&
-		   !ClientRedirector::IsValidEndpoint("server.example.net:0") &&
-		   !ClientRedirector::IsValidEndpoint("server.example.net:65536") &&
-		   !ClientRedirector::IsValidEndpoint("server.example.net;quit:27015") &&
-		   !ClientRedirector::IsValidEndpoint("server..example.net:27015") &&
-		   !ClientRedirector::IsValidEndpoint("[not-ipv6]:27015") &&
-		   !ClientRedirector::IsValidEndpoint("[::::]:27015") &&
-		   !ClientRedirector::IsValidEndpoint("[1:2:3:4:5:6:7:8:]:27015") &&
-		   !ClientRedirector::IsValidEndpoint("[:1:2:3:4:5:6:7:8]:27015") &&
-		   !ClientRedirector::IsValidEndpoint("[1:2:3:4:5:6:7:8:9]:27015");
+	return ClientRedirector::IsValidEndpoint("127.0.0.1:27015") && ClientRedirector::IsValidEndpoint("server.example.net:65535")
+		   && ClientRedirector::IsValidEndpoint("[2001:db8::1]:27015") && ClientRedirector::IsValidEndpoint("[::1]:27015")
+		   && !ClientRedirector::IsValidEndpoint("server.example.net:0") && !ClientRedirector::IsValidEndpoint("server.example.net:65536")
+		   && !ClientRedirector::IsValidEndpoint("server.example.net;quit:27015") && !ClientRedirector::IsValidEndpoint("server..example.net:27015")
+		   && !ClientRedirector::IsValidEndpoint("[not-ipv6]:27015") && !ClientRedirector::IsValidEndpoint("[::::]:27015")
+		   && !ClientRedirector::IsValidEndpoint("[1:2:3:4:5:6:7:8:]:27015") && !ClientRedirector::IsValidEndpoint("[:1:2:3:4:5:6:7:8]:27015")
+		   && !ClientRedirector::IsValidEndpoint("[1:2:3:4:5:6:7:8:9]:27015");
 }
 } // namespace
 
@@ -643,6 +1001,16 @@ int main()
 		std::fprintf(stderr, "Service registry tests failed.\n");
 		return 1;
 	}
+	if (!TestClusterConfig())
+	{
+		std::fprintf(stderr, "Cluster configuration tests failed.\n");
+		return 1;
+	}
+	if (!TestConfigExamples())
+	{
+		std::fprintf(stderr, "Configuration examples failed to load.\n");
+		return 1;
+	}
 #ifdef OW_ENABLE_CACHE_FALLBACK
 	if (!TestMemoryCache())
 	{
@@ -652,11 +1020,6 @@ int main()
 	if (!TestPlayerWarmup())
 	{
 		std::fprintf(stderr, "Player warmup tests failed.\n");
-		return 1;
-	}
-	if (!TestClusterConfig())
-	{
-		std::fprintf(stderr, "Cluster configuration tests failed.\n");
 		return 1;
 	}
 	if (!TestRedisCacheFailures())
@@ -685,14 +1048,39 @@ int main()
 		std::fprintf(stderr, "Player settings worker tests failed.\n");
 		return 1;
 	}
+	if (!TestPlayerCharacterWorker())
+	{
+		std::fprintf(stderr, "Player character worker tests failed.\n");
+		return 1;
+	}
 	if (!TestPostgreSQLIntegrationWhenConfigured())
 	{
 		std::fprintf(stderr, "PostgreSQL integration test failed.\n");
 		return 1;
 	}
+	if (!TestTransferModuleServiceLifecycle())
+	{
+		std::fprintf(stderr, "Transfer module service lifecycle tests failed.\n");
+		return 1;
+	}
+	if (!TestInventoryModuleServiceLifecycle())
+	{
+		std::fprintf(stderr, "Inventory module service lifecycle tests failed.\n");
+		return 1;
+	}
+	if (!TestEconomyModuleServiceLifecycle())
+	{
+		std::fprintf(stderr, "Economy module service lifecycle tests failed.\n");
+		return 1;
+	}
 	if (!TestTransferStateMachine())
 	{
 		std::fprintf(stderr, "Transfer state machine tests failed.\n");
+		return 1;
+	}
+	if (!TestPlayerRouteWorker())
+	{
+		std::fprintf(stderr, "Player route worker tests failed.\n");
 		return 1;
 	}
 	if (!TestRedirectEndpointValidation())

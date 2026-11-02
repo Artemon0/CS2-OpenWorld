@@ -195,7 +195,7 @@ bool schema::HasField(const char* className, const char* memberName)
 	for (int i = 0; classInfo->m_pFields && i < classInfo->m_nFieldCount; ++i)
 	{
 		const char* fieldName = classInfo->m_pFields[i].m_pszName;
-		if (fieldName && CS2AC_STREQ(fieldName, memberName))
+		if (fieldName && OW_STREQ(fieldName, memberName))
 		{
 			return true;
 		}
@@ -205,7 +205,7 @@ bool schema::HasField(const char* className, const char* memberName)
 	for (int i = 0; i < dataFieldCount; ++i)
 	{
 		const auto& field = classInfo->m_pDataDescMap->dataDesc[i];
-		if (field.fieldName && CS2AC_STREQ(field.fieldName, memberName) && field.fieldOffset >= 0)
+		if (field.fieldName && OW_STREQ(field.fieldName, memberName) && field.fieldOffset >= 0)
 		{
 			return true;
 		}

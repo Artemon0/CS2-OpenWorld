@@ -1,6 +1,9 @@
 #include "player.h"
 #include "sdk/services.h"
 
+static PlayerManager s_PlayerManager;
+PlayerManager* g_pPlayerManager = &s_PlayerManager;
+
 PlayerManager::PlayerManager()
 {
 	for (i32 i = 0; i <= MAXPLAYERS; ++i)

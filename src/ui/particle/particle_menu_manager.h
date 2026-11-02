@@ -20,9 +20,11 @@ using MenuActionCallback = std::function<void(CPlayerSlot slot, const std::strin
 
 struct ActiveMenuSession
 {
-	CPlayerSlot slot;
+	CPlayerSlot slot {-1};
 	ParticleMenu menu;
-	CParticleSystem* pShellEntity {nullptr};
+	CHandle<CBaseEntity> shellEntity;
+	CHandle<CBaseEntity> frozenPawn;
+	MenuActionCallback actionHandler;
 	int shellEntityIndex {0};
 
 	QAngle lastViewAngles {0.0f, 0.0f, 0.0f};
@@ -69,7 +71,7 @@ private:
 	static void SyncLayout(ActiveMenuSession& session, bool force);
 	static void PlaySound(CPlayerSlot slot, const char* soundPath);
 	static void FreezePlayer(ActiveMenuSession& session, CCSPlayerPawn* pawn);
-	static void UnfreezePlayer(ActiveMenuSession& session, CCSPlayerPawn* pawn);
+	static void UnfreezePlayer(ActiveMenuSession& session);
 	static std::int64_t GetCurrentTimeMs();
 
 	static inline std::unordered_map<int, ActiveMenuSession> s_Sessions;

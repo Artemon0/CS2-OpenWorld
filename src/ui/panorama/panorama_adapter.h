@@ -1,6 +1,8 @@
 #pragma once
 
+#include "adapters/panorama/panorama_adapter.h"
+
 namespace ow::ui
 {
-class PanoramaAdapter;
-}
+using PanoramaAdapter = ow::adapters::PanoramaAdapter;
+} // namespace ow::ui

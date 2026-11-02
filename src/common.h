@@ -80,13 +80,13 @@ typedef double f64;
 // str*cmp considered harmful.
 //  Macros to make sure you don't mess up checking if strings are equal.
 //  The I means case insensitive.
-#define TEMPLATE_STREQ(a, b)             (V_strcmp(a, b) == 0)
-#define TEMPLATE_STREQI(a, b)            (V_stricmp(a, b) == 0)
-#define TEMPLATE_STREQLEN(a, b, maxlen)  (V_strncmp(a, b, maxlen) == 0)
-#define TEMPLATE_STREQILEN(a, b, maxlen) (V_strnicmp(a, b, maxlen) == 0)
+#define OW_STREQ(a, b)             (V_strcmp(a, b) == 0)
+#define OW_STREQI(a, b)            (V_stricmp(a, b) == 0)
+#define OW_STREQLEN(a, b, maxlen)  (V_strncmp(a, b, maxlen) == 0)
+#define OW_STREQILEN(a, b, maxlen) (V_strnicmp(a, b, maxlen) == 0)
 // ARRAYSIZE gets undef'd if metamod_oslink is included after commonmacros.h. We can use our own implementation instead.
-#define TEMPLATE_ARRAYSIZE(a)       ((sizeof(a) / sizeof(*(a))) / static_cast<size_t>(!(sizeof(a) % sizeof(*(a)))))
-#define TEMPLATE_FOURCC(a, b, c, d) ((u32)(((d) << 24) | ((c) << 16) | ((b) << 8) | (a)))
+#define OW_ARRAYSIZE(a)       ((sizeof(a) / sizeof(*(a))) / static_cast<size_t>(!(sizeof(a) % sizeof(*(a)))))
+#define OW_FOURCC(a, b, c, d) ((u32)(((d) << 24) | ((c) << 16) | ((b) << 8) | (a)))
 
 #define VPROF_LEVEL 1
 

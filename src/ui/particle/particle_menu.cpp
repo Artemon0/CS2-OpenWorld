@@ -73,7 +73,10 @@ void ParticleMenu::MoveHudCursor(
 	float yawDelta, float pitchDelta,
 	float sensitivityX, float rowsPerPitchDegree, float xLimit)
 {
-	if (!IsOpen() || !std::isfinite(yawDelta) || !std::isfinite(pitchDelta))
+	if (!IsOpen() || !std::isfinite(yawDelta) || !std::isfinite(pitchDelta) ||
+		!std::isfinite(sensitivityX) || sensitivityX <= 0.0f ||
+		!std::isfinite(rowsPerPitchDegree) || rowsPerPitchDegree <= 0.0f ||
+		!std::isfinite(xLimit) || xLimit <= 0.0f)
 	{
 		return;
 	}
@@ -148,6 +151,31 @@ int ParticleMenu::ComputeHudHover() const
 	return HoverTargetNone;
 }
 
+bool ParticleMenu::MoveHudSelection(int delta)
+{
+	if (!IsOpen() || delta == 0)
+	{
+		return false;
+	}
+
+	const int lastItem = static_cast<int>(ItemsPerPage) - 1;
+	const int currentItem = hudHoverIndex >= 0 && hudHoverIndex <= lastItem
+		? hudHoverIndex
+		: static_cast<int>(std::lround(std::clamp(hudCursorRow, 0.0f, static_cast<float>(lastItem))));
+	const int direction = delta > 0 ? 1 : -1;
+	for (int target = currentItem + direction; target >= 0 && target <= lastItem; target += direction)
+	{
+		if (pages[pageIndex][static_cast<std::size_t>(target)].enabled)
+		{
+			hudCursorRow = static_cast<float>(target);
+			hudHoverIndex = target;
+			hoveredItem = static_cast<std::size_t>(target);
+			return true;
+		}
+	}
+	return false;
+}
+
 bool ParticleMenu::ChangePage(int delta)
 {
 	if (!IsOpen() || delta == 0)
@@ -155,13 +183,25 @@ bool ParticleMenu::ChangePage(int delta)
 		return false;
 	}
 
-	const int next = static_cast<int>(pageIndex) + delta;
-	if (next < 0 || static_cast<std::size_t>(next) >= pages.size())
+	if (delta < 0)
 	{
-		return false;
+		const auto steps = static_cast<std::uint64_t>(-static_cast<std::int64_t>(delta));
+		if (steps > pageIndex)
+		{
+			return false;
+		}
+		pageIndex -= static_cast<std::size_t>(steps);
+	}
+	else
+	{
+		const auto steps = static_cast<std::uint64_t>(delta);
+		if (steps >= pages.size() - pageIndex)
+		{
+			return false;
+		}
+		pageIndex += static_cast<std::size_t>(steps);
 	}
 
-	pageIndex = static_cast<std::size_t>(next);
 	hudHoverIndex = ComputeHudHover();
 	if (hudHoverIndex >= 0 && static_cast<std::size_t>(hudHoverIndex) < ItemsPerPage)
 	{

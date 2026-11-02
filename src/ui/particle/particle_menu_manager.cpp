@@ -54,10 +54,9 @@ bool ParticleMenuManager::Initialize(ISource2GameEntities* pGameEntities)
 		return true;
 	}
 
-	EntitySpawner::Initialize();
-	if (pGameEntities)
+	if (!EntitySpawner::Initialize() || !pGameEntities || !ParticleTransmitFilter::InstallHook(pGameEntities))
 	{
-		ParticleTransmitFilter::InstallHook(pGameEntities);
+		return false;
 	}
 
 	s_Initialized = true;
@@ -91,7 +90,13 @@ bool ParticleMenuManager::OpenMenu(
 	std::vector<std::array<MenuItem, ItemCount>> pages,
 	MenuActionCallback callback)
 {
-	if (slot.Get() < 0 || slot.Get() >= MAXPLAYERS)
+	if (!s_Initialized || !EntitySpawner::IsReady() || slot.Get() < 0 || slot.Get() >= MAXPLAYERS)
+	{
+		return false;
+	}
+
+	ParticleMenu validatedMenu;
+	if (!validatedMenu.SetPages(std::move(pages)))
 	{
 		return false;
 	}
@@ -117,34 +122,32 @@ bool ParticleMenuManager::OpenMenu(
 	const QAngle eyeAngles = pawn->m_angEyeAngles();
 	const Vector origin = pawn->GetAbsOrigin();
 
-	// Spawn the composite menu shell particle entity
 	CParticleSystem* pShell = EntitySpawner::SpawnParticleSystem(
 		CustomShellParticle, origin, eyeAngles, true);
-	if (!pShell)
-	{
-		// Fallback to built-in fallback particle if custom compiled particle is missing
-		pShell = EntitySpawner::SpawnParticleSystem(
-			BuiltinItemParticle, origin, eyeAngles, true);
-	}
-
 	if (!pShell)
 	{
 		return false;
 	}
 
 	const int entityIndex = pShell->entindex();
+	if (entityIndex <= 0 || entityIndex >= MAX_EDICTS)
+	{
+		EntitySpawner::RemoveEntity(pShell);
+		return false;
+	}
 
 	// Set initial particle HUD layout
 	const HudParticleLayout initialLayout = CreateCompositeHudLayout(0, 0, DefaultHudItemX, 0.0f);
 	pShell->ApplyHudLayout(initialLayout);
 
 	// Register entity for per-player transmission filtering so only 'slot' sees it
-	ParticleTransmitFilter::RegisterMenuEntity(entityIndex, slot.Get());
+	ParticleTransmitFilter::RegisterMenuEntity(pShell, slot.Get());
 
 	ActiveMenuSession session;
 	session.slot = slot;
-	session.menu.SetPages(std::move(pages));
-	session.pShellEntity = pShell;
+	session.menu = std::move(validatedMenu);
+	session.shellEntity = pShell;
+	session.actionHandler = std::move(callback);
 	session.shellEntityIndex = entityIndex;
 	session.lastViewAngles = eyeAngles;
 	session.sentHudCursorX = DefaultHudItemX;
@@ -176,23 +179,21 @@ bool ParticleMenuManager::CloseMenu(CPlayerSlot slot, bool notify, const char* r
 
 	ActiveMenuSession& session = found->second;
 
-	Player* player = g_pPlayerManager ? g_pPlayerManager->ToPlayer(slot) : nullptr;
-	CCSPlayerPawn* pawn = player ? player->GetPlayerPawn() : nullptr;
-	if (pawn)
-	{
-		UnfreezePlayer(session, pawn);
-	}
+	UnfreezePlayer(session);
 
-	if (session.pShellEntity)
+	if (auto* shell = static_cast<CParticleSystem*>(session.shellEntity.Get()))
 	{
 		// Send client-side kill signal (CP17 = -1, 0, 0)
-		session.pShellEntity->SendKillSignal();
-		ParticleTransmitFilter::UnregisterMenuEntity(session.shellEntityIndex);
-		EntitySpawner::RemoveEntity(session.pShellEntity);
-		session.pShellEntity = nullptr;
+		shell->SendKillSignal();
+		EntitySpawner::RemoveEntity(shell);
 	}
+	ParticleTransmitFilter::UnregisterMenuEntity(session.shellEntityIndex);
+	session.shellEntity = nullptr;
 
-	PlaySound(slot, CloseSound);
+	if (notify)
+	{
+		PlaySound(slot, CloseSound);
+	}
 	s_Sessions.erase(found);
 	return true;
 }
@@ -214,7 +215,7 @@ void ParticleMenuManager::CloseAll(const char* reason)
 
 void ParticleMenuManager::OnGameFrame(bool simulating)
 {
-	if (s_Sessions.empty())
+	if (!s_Initialized || !simulating || s_Sessions.empty())
 	{
 		return;
 	}
@@ -238,6 +239,12 @@ void ParticleMenuManager::OnGameFrame(bool simulating)
 
 void ParticleMenuManager::TickSession(ActiveMenuSession& session)
 {
+	if (!session.shellEntity.Get())
+	{
+		CloseMenu(session.slot, false, "particle_removed");
+		return;
+	}
+
 	Player* player = g_pPlayerManager ? g_pPlayerManager->ToPlayer(session.slot) : nullptr;
 	if (!player || !player->IsInGame())
 	{
@@ -259,13 +266,20 @@ void ParticleMenuManager::TickSession(ActiveMenuSession& session)
 void ParticleMenuManager::UpdateSessionView(ActiveMenuSession& session, CCSPlayerPawn* pawn)
 {
 	const QAngle currentAngles = pawn->m_angEyeAngles();
-	float yawDelta = currentAngles.y - session.lastViewAngles.y;
-	float pitchDelta = currentAngles.x - session.lastViewAngles.x;
-	session.lastViewAngles = currentAngles;
+	if (!std::isfinite(currentAngles.x) || !std::isfinite(currentAngles.y) ||
+		!std::isfinite(session.lastViewAngles.x) || !std::isfinite(session.lastViewAngles.y))
+	{
+		session.lastViewAngles = currentAngles;
+		return;
+	}
 
-	// Normalize deltas
-	while (yawDelta > 180.0f) yawDelta -= 360.0f;
-	while (yawDelta < -180.0f) yawDelta += 360.0f;
+	const float yawDelta = std::remainder(currentAngles.y - session.lastViewAngles.y, 360.0f);
+	const float pitchDelta = currentAngles.x - session.lastViewAngles.x;
+	session.lastViewAngles = currentAngles;
+	if (!std::isfinite(yawDelta) || !std::isfinite(pitchDelta))
+	{
+		return;
+	}
 
 	const int oldHover = session.menu.GetHudHoverIndex();
 	session.menu.MoveHudCursor(yawDelta, pitchDelta);
@@ -323,16 +337,19 @@ void ParticleMenuManager::HandleButtons(ActiveMenuSession& session, CCSPlayerPaw
 		return;
 	}
 
-	// Optional W / S navigation
 	if (newlyPressed0 & IN_FORWARD_BIT)
 	{
-		// Move selection up
-		session.menu.ChangePage(0);
+		if (session.menu.MoveHudSelection(-1))
+		{
+			SyncLayout(session, false);
+		}
 	}
 	else if (newlyPressed0 & IN_BACK_BIT)
 	{
-		// Move selection down
-		session.menu.ChangePage(0);
+		if (session.menu.MoveHudSelection(1))
+		{
+			SyncLayout(session, false);
+		}
 	}
 }
 
@@ -381,22 +398,24 @@ void ParticleMenuManager::ActivateCurrentHover(ActiveMenuSession& session)
 		}
 		else
 		{
-			// Leaf item activated
 			PlaySound(session.slot, SelectSound);
-			if (s_DefaultActionHandler)
+			const CPlayerSlot slot = session.slot;
+			const MenuActionCallback handler = session.actionHandler ? session.actionHandler : s_DefaultActionHandler;
+			const std::string actionId = selection->id;
+			const std::string label = selection->label;
+			CloseMenu(slot, false, "item_selected");
+			if (handler)
 			{
-				s_DefaultActionHandler(session.slot, selection->id, selection->label);
+				handler(slot, actionId, label);
 			}
-
-			// Close menu after leaf item selection
-			CloseMenu(session.slot, false, "item_selected");
 		}
 	}
 }
 
 void ParticleMenuManager::SyncLayout(ActiveMenuSession& session, bool force)
 {
-	if (!session.pShellEntity)
+	auto* shell = static_cast<CParticleSystem*>(session.shellEntity.Get());
+	if (!shell)
 	{
 		return;
 	}
@@ -416,7 +435,7 @@ void ParticleMenuManager::SyncLayout(ActiveMenuSession& session, bool force)
 
 	const HudParticleLayout layout = CreateCompositeHudLayout(
 		selection, page, cursorX, cursorRow);
-	session.pShellEntity->ApplyHudLayout(layout);
+	shell->ApplyHudLayout(layout);
 
 	session.sentSelection = selection;
 	session.sentPage = page;
@@ -445,18 +464,23 @@ void ParticleMenuManager::FreezePlayer(ActiveMenuSession& session, CCSPlayerPawn
 	}
 
 	session.originalMoveType = pawn->m_MoveType();
+	session.frozenPawn = pawn;
 	session.moveFrozen = true;
 	pawn->SetMoveType(MOVETYPE_NONE);
 }
 
-void ParticleMenuManager::UnfreezePlayer(ActiveMenuSession& session, CCSPlayerPawn* pawn)
+void ParticleMenuManager::UnfreezePlayer(ActiveMenuSession& session)
 {
-	if (!session.moveFrozen || !pawn)
+	if (!session.moveFrozen)
 	{
 		return;
 	}
 
-	pawn->SetMoveType(session.originalMoveType);
+	if (auto* pawn = static_cast<CCSPlayerPawn*>(session.frozenPawn.Get()))
+	{
+		pawn->SetMoveType(session.originalMoveType);
+	}
+	session.frozenPawn = nullptr;
 	session.moveFrozen = false;
 }
 

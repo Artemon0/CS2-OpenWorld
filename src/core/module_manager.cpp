@@ -14,7 +14,7 @@ bool ModuleManager::RegisterModule(IModule& module)
 	}
 
 	const auto duplicate = std::find_if(modules.begin(), modules.end(), [&module](const IModule* existing) {
-		if (existing->GetId() == module.GetId())
+		return existing->GetId() == module.GetId();
 	});
 	if (duplicate != modules.end())
 	{
@@ -68,6 +68,14 @@ bool ModuleManager::StartAll()
 void ModuleManager::StopAll()
 {
 	RollBack();
+}
+
+void ModuleManager::Clear()
+{
+	StopAll();
+	modules.clear();
+	startupOrder.clear();
+	lastError.clear();
 }
 
 bool ModuleManager::ResolveStartupOrder()

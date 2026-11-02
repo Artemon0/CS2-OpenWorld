@@ -14,10 +14,20 @@ bool TransferModule::Initialize()
 
 bool TransferModule::Start()
 {
-	return true;
+	if (serviceRegistered)
+	{
+		return true;
+	}
+	serviceRegistered = serviceRegistry.Register<ow::transfer::ITransferService>(transferManager, 1);
+	return serviceRegistered;
 }
 
 void TransferModule::Stop()
 {
+	if (serviceRegistered)
+	{
+		serviceRegistry.Unregister<ow::transfer::ITransferService>(transferManager);
+		serviceRegistered = false;
+	}
 }
 } // namespace ow::modules

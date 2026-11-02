@@ -27,6 +27,36 @@ struct ZoneOwnership
 	double maximumY {};
 };
 
+enum class WorldMode
+{
+	Cluster,
+	SingleMap
+};
+
+struct AdapterSettings
+{
+	bool postgresql {true};
+	bool panorama {true};
+	bool hud {true};
+	bool input {true};
+	bool mapOverview {true};
+	bool particleMenu {true};
+};
+
+struct ModuleSettings
+{
+	bool characters {true};
+	bool economy {true};
+	bool inventory {true};
+	bool transfer {true};
+};
+
+struct RoutingSettings
+{
+	bool enforceServerAffinity {};
+	std::string lobbyServerId;
+};
+
 class ClusterConfig
 {
 public:
@@ -36,9 +66,17 @@ public:
 	const ServerEndpoint* CurrentServer() const;
 	const ServerEndpoint* FindServer(std::string_view id) const;
 	const ZoneOwnership* FindZone(std::string_view map, double x, double y) const;
+	const ZoneOwnership* FindTransitionZone(std::string_view map, std::string_view currentServerId, double x,
+										   double y) const;
 
 	std::string serverId;
 	std::string environment;
+	bool enabled {true};
+	WorldMode worldMode {WorldMode::Cluster};
+	std::string worldMap;
+	AdapterSettings adapters;
+	ModuleSettings modules;
+	RoutingSettings routing;
 	std::string persistenceProvider;
 	std::string persistenceConnectionEnv;
 	std::string cacheProvider;

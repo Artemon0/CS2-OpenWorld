@@ -1,21 +1,228 @@
-MIT License
+CS2 OPEN WORLD — PROPRIETARY LICENSE NOTICE
 
-Copyright (c) 2026 Artem Onyshchenko
+ENGLISH VERSION (PRIMARY)
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Copyright (c) 2026 Artem Onyshchenko. All rights reserved in original
+CS2 Open World materials created by the rights holder, subject to third-party
+rights and applicable law.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+1. SCOPE
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+This notice applies only to original CS2 Open World materials in which the
+rights holder owns or is authorized to license the relevant rights
+("Materials"). Materials may include original source and object code,
+graphics, text, documentation, configurations, and other creative content.
+This notice does not cover third-party materials.
+
+2. NO LICENSE GRANTED
+
+Unless expressly authorized by a separate written license signed by the
+rights holder, no permission is granted to:
+
+- copy, reproduce, modify, adapt, translate, decompile, disassemble, reverse
+  engineer, or create derivative works from the Materials;
+- publish, transmit, distribute, sell, rent, lend, sublicense, or otherwise
+  make the Materials or copies of them available to others;
+- remove or alter copyright, authorship, ownership, or other legal notices;
+- use the Materials to train, fine-tune, test, or evaluate machine-learning
+  or artificial-intelligence models; or
+- use the Materials to create a derivative product, including a product
+  competing with CS2 Open World.
+
+Access to a repository, possession of a copy, payment, download, or possession
+of a copy does not itself grant a license to use the Materials. A software
+customer must receive a separate written license specifying the permitted
+uses and applicable terms.
+
+3. LIMITS AND STATUTORY EXCEPTIONS
+
+This notice does not claim rights over ideas, principles, methods, algorithms,
+functionality, protocols, data formats, or other elements that are not
+protected by copyright as expression. It does not prohibit an independently
+created product with similar functions or purpose if that product was created
+without using the Materials, confidential information, or other protected
+rights of the rights holder.
+
+Nothing in this notice restricts non-waivable rights or exceptions provided
+by applicable law, including the Ukrainian Law on Copyright and Related
+Rights No. 2811-IX, as amended. Any restriction on reverse engineering applies
+only to the extent permitted by applicable law.
+
+4. THIRD-PARTY MATERIALS
+
+Third-party libraries, SDKs, game content, trademarks, assets, and other
+materials remain subject to their respective owners' rights and licenses, not
+this notice. See THIRD_PARTY_NOTICES.md and the licenses directory. This notice
+does not grant permission from Valve, Counter-Strike 2, Source 2, Steam, or
+any other third-party rights holder, and does not authorize commercial
+distribution of a CS2 modification.
+
+5. ENFORCEMENT AND INTERPRETATION
+
+The rights holder reserves all rights and remedies available under applicable
+law for infringement of its rights in the Materials. If any provision cannot
+be enforced, the remaining provisions continue to apply to the extent
+permitted by law.
+
+This notice reserves rights and states that no general license is granted. It
+is not an individual customer agreement, legal opinion, or assurance that the
+product may be sold. Before commercial release, obtain all required
+third-party permissions and consult a qualified Ukrainian intellectual
+property lawyer.
+
+The Russian and Ukrainian versions below are translations for convenience.
+The English version is the primary text. If the versions conflict, the
+English version controls to the extent permitted by applicable law.
+
+РУССКИЙ ПЕРЕВОД
+
+CS2 OPEN WORLD — УВЕДОМЛЕНИЕ О ПРОПРИЕТАРНЫХ ПРАВАХ
+
+© 2026 Artem Onyshchenko. Все права на оригинальные материалы CS2 Open World,
+созданные правообладателем, защищены с учетом прав третьих лиц и применимого
+законодательства.
+
+1. ОБЛАСТЬ ДЕЙСТВИЯ
+
+Это уведомление относится только к оригинальным материалам CS2 Open World,
+права на которые принадлежат правообладателю либо использование которых он
+вправе лицензировать («Материалы»). К ним могут относиться исходный и
+объектный код, графика, тексты, документация, конфигурации и другие
+творческие материалы. Уведомление не распространяется на материалы третьих
+лиц.
+
+2. ЛИЦЕНЗИЯ НЕ ПРЕДОСТАВЛЯЕТСЯ
+
+Если отдельная письменная лицензия, подписанная правообладателем, прямо не
+разрешает соответствующее действие, не предоставляется право:
+
+- копировать, воспроизводить, изменять, адаптировать, переводить,
+  декомпилировать, дизассемблировать, проводить обратную разработку
+  Материалов или создавать на их основе производные работы;
+- публиковать, передавать, распространять, продавать, сдавать в аренду,
+  предоставлять во временное пользование, сублицензировать или иным образом
+  предоставлять Материалы либо их копии другим лицам;
+- удалять или изменять уведомления об авторстве, правообладании или иные
+  правовые обозначения;
+- использовать Материалы для обучения, дообучения, тестирования или оценки
+  моделей машинного обучения или искусственного интеллекта; либо
+- использовать Материалы для создания производного продукта, в том числе
+  конкурирующего с CS2 Open World.
+
+Доступ к репозиторию, получение или владение копией, оплата либо скачивание
+сами по себе не предоставляют лицензию на использование Материалов. Покупателю
+программного обеспечения должна быть выдана отдельная письменная лицензия,
+определяющая разрешенное использование и применимые условия.
+
+3. ПРЕДЕЛЫ ПРАВ И ИСКЛЮЧЕНИЯ ПО ЗАКОНУ
+
+Это уведомление не устанавливает права на идеи, принципы, методы, алгоритмы,
+функции, протоколы, форматы данных и другие элементы, которые не охраняются
+авторским правом как форма выражения. Оно не запрещает независимо созданный
+продукт со сходными функциями или назначением, если при его создании не
+использовались Материалы, конфиденциальная информация или иные охраняемые
+права правообладателя.
+
+Ничто в этом уведомлении не ограничивает неотчуждаемые права или исключения,
+предусмотренные применимым законодательством, включая Закон Украины
+«Об авторском праве и смежных правах» № 2811-IX с изменениями. Ограничение
+обратной разработки действует только в пределах, допускаемых применимым
+законом.
+
+4. МАТЕРИАЛЫ ТРЕТЬИХ ЛИЦ
+
+Сторонние библиотеки, SDK, игровой контент, товарные знаки, ресурсы и иные
+материалы регулируются правами и лицензиями их владельцев, а не этим
+уведомлением. См. THIRD_PARTY_NOTICES.md и каталог licenses. Это уведомление
+не предоставляет разрешений от Valve, Counter-Strike 2, Source 2, Steam или
+других правообладателей и не является разрешением на коммерческое
+распространение модификации для CS2.
+
+5. ЗАЩИТА ПРАВ И ТОЛКОВАНИЕ
+
+Правообладатель сохраняет все права и способы правовой защиты, доступные
+согласно применимому законодательству, в отношении нарушений его прав на
+Материалы. Если отдельное положение невозможно применить, остальные
+положения продолжают действовать в пределах, допускаемых законом.
+
+Это уведомление закрепляет права и указывает, что общая лицензия не
+предоставляется. Оно не является индивидуальным договором с покупателем,
+юридическим заключением или гарантией того, что продукт можно продавать.
+Перед коммерческим выпуском получите все необходимые разрешения третьих лиц
+и проконсультируйтесь с квалифицированным украинским юристом по
+интеллектуальной собственности.
+
+УКРАЇНСЬКИЙ ПЕРЕКЛАД
+
+CS2 OPEN WORLD — ПОВІДОМЛЕННЯ ПРО ПРОПРІЄТАРНІ ПРАВА
+
+© 2026 Artem Onyshchenko. Усі права на оригінальні матеріали CS2 Open World,
+створені правовласником, захищені з урахуванням прав третіх осіб і чинного
+законодавства.
+
+1. СФЕРА ДІЇ
+
+Це повідомлення стосується лише оригінальних матеріалів CS2 Open World, права
+на які належать правовласнику або використання яких він уповноважений
+ліцензувати («Матеріали»). До них можуть належати вихідний і об’єктний код,
+графіка, тексти, документація, конфігурації та інші творчі матеріали.
+Повідомлення не поширюється на матеріали третіх осіб.
+
+2. ЛІЦЕНЗІЮ НЕ НАДАНО
+
+Якщо окрема письмова ліцензія, підписана правовласником, прямо не дозволяє
+відповідну дію, не надається право:
+
+- копіювати, відтворювати, змінювати, адаптувати, перекладати,
+  декомпілювати, дизасемблювати, здійснювати зворотну розробку Матеріалів або
+  створювати на їх основі похідні твори;
+- публікувати, передавати, поширювати, продавати, здавати в оренду, надавати
+  в тимчасове користування, субліцензувати або іншим чином надавати
+  Матеріали чи їхні копії іншим особам;
+- вилучати або змінювати повідомлення про авторство, правовласника чи інші
+  правові позначення;
+- використовувати Матеріали для навчання, донавчання, тестування або
+  оцінювання моделей машинного навчання чи штучного інтелекту; або
+- використовувати Матеріали для створення похідного продукту, зокрема
+  продукту, що конкурує з CS2 Open World.
+
+Доступ до репозиторію, отримання або володіння копією, оплата чи завантаження
+самі по собі не надають ліцензії на використання Матеріалів. Покупцеві
+програмного забезпечення має бути надана окрема письмова ліцензія, що
+визначає дозволене використання та застосовні умови.
+
+3. МЕЖІ ПРАВ І ВИНЯТКИ, ВСТАНОВЛЕНІ ЗАКОНОМ
+
+Це повідомлення не встановлює прав на ідеї, принципи, методи, алгоритми,
+функціональність, протоколи, формати даних чи інші елементи, які не
+охороняються авторським правом як форма вираження. Воно не забороняє
+незалежно створений продукт зі схожими функціями або призначенням, якщо під
+час його створення не використовувалися Матеріали, конфіденційна інформація
+чи інші охоронювані права правовласника.
+
+Жодне положення цього повідомлення не обмежує невідчужувані права чи винятки,
+передбачені застосовним законодавством, зокрема Законом України «Про
+авторське право і суміжні права» № 2811-IX зі змінами. Обмеження зворотної
+розробки діє лише в межах, дозволених застосовним законом.
+
+4. МАТЕРІАЛИ ТРЕТІХ ОСІБ
+
+Сторонні бібліотеки, SDK, ігровий контент, торговельні марки, ресурси та інші
+матеріали регулюються правами й ліцензіями їхніх власників, а не цим
+повідомленням. Див. THIRD_PARTY_NOTICES.md і каталог licenses. Це повідомлення
+не надає дозволів від Valve, Counter-Strike 2, Source 2, Steam чи будь-якого
+іншого правовласника та не є дозволом на комерційне поширення модифікації
+для CS2.
+
+5. ЗАХИСТ ПРАВ І ТЛУМАЧЕННЯ
+
+Правовласник зберігає всі права та засоби правового захисту, доступні за
+застосовним законодавством, щодо порушень його прав на Матеріали. Якщо окреме
+положення неможливо застосувати, решта положень продовжує діяти в межах,
+дозволених законом.
+
+Це повідомлення закріплює права та зазначає, що загальну ліцензію не надано.
+Воно не є індивідуальним договором із покупцем, юридичним висновком чи
+гарантією того, що продукт можна продавати. Перед комерційним випуском
+отримайте всі потрібні дозволи третіх осіб і проконсультуйтеся з
+кваліфікованим українським юристом з інтелектуальної власності.
