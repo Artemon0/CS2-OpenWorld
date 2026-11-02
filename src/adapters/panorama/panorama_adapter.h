@@ -11,6 +11,7 @@ class ISmmAPI;
 
 class IGameEventSystem;
 class INetworkMessages;
+class INetworkMessageInternal;
 
 namespace ow::adapters
 {
@@ -30,5 +31,6 @@ public:
 private:
 	INetworkMessages* networkMessages {};
 	IGameEventSystem* gameEventSystem {};
+	INetworkMessageInternal* textMessage {};
 };
 } // namespace ow::adapters

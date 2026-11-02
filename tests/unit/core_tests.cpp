@@ -281,6 +281,7 @@ enabled = 1
 [persistence]
 provider = postgresql
 connection_env = OW_PG_TEST
+connect_timeout = 7
 [cache]
 provider = redis
 shared_provider = redis
@@ -293,6 +294,8 @@ redis_key_prefix = openworld:test:
 redis_timeout_ms = 250
 redis_max_value_bytes = 1048576
 redis_tls = false
+[adapters]
+particle_menu = true
 [routing]
 enforce_server_affinity = true
 lobby_server_id = a
@@ -325,7 +328,8 @@ max_y = 100
 	if (!config || !error.empty() || !config->CurrentServer() || !config->enabled || config->worldMode != ow::core::WorldMode::Cluster
 		|| !config->adapters.postgresql || !config->adapters.panorama || !config->adapters.hud || !config->adapters.input
 		|| !config->adapters.mapOverview || !config->modules.characters || !config->modules.economy || !config->modules.inventory
-		|| !config->modules.transfer || !config->routing.enforceServerAffinity ||
+		|| !config->modules.transfer || config->persistenceConnectTimeoutSeconds != 7 ||
+		!config->adapters.particleMenu || !config->routing.enforceServerAffinity ||
 		config->routing.lobbyServerId != "a" || !config->FindServer("b") ||
 		config->FindServer("b")->connect != "server.example.net:27016"
 		|| config->FindServer("missing"))
@@ -348,6 +352,33 @@ max_y = 100
 	}
 	if (config->redisHost != "127.0.0.1" || config->redisPort != 6379 || config->redisDatabase != 1 || config->redisKeyPrefix != "openworld:test:"
 		|| config->redisPasswordEnv != "OW_REDIS_PASSWORD")
+	{
+		return false;
+	}
+	std::string timeoutConfigError;
+	std::string invalidTimeoutConfig = validConfig;
+	const std::string validTimeoutSetting = "connect_timeout = 7";
+	const auto timeoutSettingPosition = invalidTimeoutConfig.find(validTimeoutSetting);
+	if (timeoutSettingPosition == std::string::npos)
+	{
+		return false;
+	}
+	invalidTimeoutConfig.replace(timeoutSettingPosition, validTimeoutSetting.size(), "connect_timeout = 0");
+	if (ow::core::ClusterConfig::Parse(invalidTimeoutConfig, &timeoutConfigError) ||
+		timeoutConfigError.find("connect_timeout") == std::string::npos)
+	{
+		return false;
+	}
+	std::string disabledParticleConfig = validConfig;
+	const std::string particleMenuSetting = "particle_menu = true\n";
+	const auto particleMenuPosition = disabledParticleConfig.find(particleMenuSetting);
+	if (particleMenuPosition == std::string::npos)
+	{
+		return false;
+	}
+	disabledParticleConfig.erase(particleMenuPosition, particleMenuSetting.size());
+	const auto parsedWithoutParticleMenu = ow::core::ClusterConfig::Parse(disabledParticleConfig);
+	if (!parsedWithoutParticleMenu || parsedWithoutParticleMenu->adapters.particleMenu)
 	{
 		return false;
 	}

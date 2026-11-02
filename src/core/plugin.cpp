@@ -297,7 +297,8 @@ bool OpenWorldPlugin::Load(PluginId id, ISmmAPI* ismm, char* error, size_t maxle
 			return false;
 		}
 		persistenceAdapter = std::make_unique<ow::adapters::PostgreSQLAdapter>();
-		if (!persistenceAdapter->Connect(*connectionInfo) || !persistenceAdapter->Ping())
+		if (!persistenceAdapter->Connect(*connectionInfo, clusterConfig->persistenceConnectTimeoutSeconds) ||
+			!persistenceAdapter->Ping())
 		{
 			const std::string databaseError = persistenceAdapter->GetLastError();
 			persistenceAdapter.reset();
@@ -578,7 +579,7 @@ bool OpenWorldPlugin::Load(PluginId id, ISmmAPI* ismm, char* error, size_t maxle
 
 	// The particle menu needs the entity system plus its transmit filter hook;
 	// without gamedata it degrades to being unavailable rather than crashing.
-	if (ParticleMenuManager::Initialize(g_pSource2GameEntities))
+	if (clusterConfig->adapters.particleMenu && ParticleMenuManager::Initialize(g_pSource2GameEntities))
 	{
 		ParticleMenuManager::SetActionHandler(
 			[this](CPlayerSlot slot, const std::string& actionId, const std::string& label)
@@ -588,7 +589,8 @@ bool OpenWorldPlugin::Load(PluginId id, ISmmAPI* ismm, char* error, size_t maxle
 	}
 	else
 	{
-		META_CONPRINTF("[%s] The particle menu could not initialize; !menu is unavailable.\n", PLUGIN_LOGTAG);
+		META_CONPRINTF("[%s] The particle menu is disabled or could not initialize; !menu is unavailable.\n",
+					   PLUGIN_LOGTAG);
 	}
 
 	META_CONPRINTF("[%s] %s %s loaded.\n", PLUGIN_LOGTAG, PLUGIN_DISPLAY_NAME, PLUGIN_FULL_VERSION);

@@ -259,7 +259,8 @@ std::optional<ClusterConfig> ClusterConfig::Parse(std::string_view contents, std
 	const Section& adapterSettings = adapters == sections.end() ? emptySection : adapters->second;
 	const Section& moduleSettings = modules == sections.end() ? emptySection : modules->second;
 	const Section& routingSettings = routing == sections.end() ? emptySection : routing->second;
-	if (!HasOnlyKeys(core->second, {"server_id", "environment", "enabled"}) || !HasOnlyKeys(persistence->second, {"provider", "connection_env"})
+	if (!HasOnlyKeys(core->second, {"server_id", "environment", "enabled"})
+		|| !HasOnlyKeys(persistence->second, {"provider", "connection_env", "connect_timeout"})
 		|| !HasOnlyKeys(cache->second,
 						{"provider", "shared_provider", "redis_host", "redis_port", "redis_database", "redis_username_env", "redis_password_env",
 						 "redis_key_prefix", "redis_timeout_ms", "redis_max_value_bytes", "redis_tls", "warmup_workers", "warmup_queue_capacity"})
@@ -309,7 +310,7 @@ std::optional<ClusterConfig> ClusterConfig::Parse(std::string_view contents, std
 		|| !ParseBoolean(adapterSettings, "panorama", true, config.adapters.panorama)
 		|| !ParseBoolean(adapterSettings, "hud", true, config.adapters.hud) || !ParseBoolean(adapterSettings, "input", true, config.adapters.input)
 		|| !ParseBoolean(adapterSettings, "map_overview", true, config.adapters.mapOverview)
-		|| !ParseBoolean(adapterSettings, "particle_menu", true, config.adapters.particleMenu))
+		|| !ParseBoolean(adapterSettings, "particle_menu", false, config.adapters.particleMenu))
 	{
 		SetError(error, "Adapter settings must be true, false, 1, or 0.");
 		return std::nullopt;
@@ -330,6 +331,12 @@ std::optional<ClusterConfig> ClusterConfig::Parse(std::string_view contents, std
 	config.routing.lobbyServerId = Get(routingSettings, "lobby_server_id");
 	config.persistenceProvider = Get(persistence->second, "provider");
 	config.persistenceConnectionEnv = Get(persistence->second, "connection_env");
+	if (!ParseInteger(persistence->second, "connect_timeout", 5, config.persistenceConnectTimeoutSeconds) ||
+		config.persistenceConnectTimeoutSeconds < 1 || config.persistenceConnectTimeoutSeconds > 60)
+	{
+		SetError(error, "persistence.connect_timeout must be an integer between 1 and 60 seconds.");
+		return std::nullopt;
+	}
 	config.cacheProvider = Get(cache->second, "provider");
 	config.sharedCacheProvider = Get(cache->second, "shared_provider", "none");
 	config.redisHost = Get(cache->second, "redis_host", "127.0.0.1");

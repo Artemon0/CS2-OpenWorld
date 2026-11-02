@@ -33,7 +33,7 @@ constexpr ExecStatus TuplesOk = 2;
 
 struct PgApi
 {
-	using ConnectDb = PGconn* (*)(const char*);
+	using ConnectDbParams = PGconn* (*)(const char* const*, const char* const*, int);
 	using Finish = void (*)(PGconn*);
 	using Status = ConnectionStatus (*)(const PGconn*);
 	using ErrorMessage = char* (*)(const PGconn*);
@@ -47,7 +47,7 @@ struct PgApi
 	using IsNull = int (*)(const PGresult*, int, int);
 	using Clear = void (*)(PGresult*);
 
-	ConnectDb connectDb {};
+	ConnectDbParams connectDbParams {};
 	Finish finish {};
 	Status status {};
 	ErrorMessage errorMessage {};
@@ -115,7 +115,7 @@ struct PgApi
 		}
 #endif
 
-		if (!LoadSymbol(connectDb, "PQconnectdb") || !LoadSymbol(finish, "PQfinish") ||
+		if (!LoadSymbol(connectDbParams, "PQconnectdbParams") || !LoadSymbol(finish, "PQfinish") ||
 			!LoadSymbol(status, "PQstatus") || !LoadSymbol(errorMessage, "PQerrorMessage") ||
 			!LoadSymbol(execParams, "PQexecParams") || !LoadSymbol(resultStatus, "PQresultStatus") ||
 			!LoadSymbol(resultErrorMessage, "PQresultErrorMessage") || !LoadSymbol(tuples, "PQntuples") ||
@@ -227,12 +227,13 @@ PostgreSQLAdapter::PostgreSQLAdapter() : impl(std::make_unique<Impl>()) {}
 
 PostgreSQLAdapter::~PostgreSQLAdapter() = default;
 
-bool PostgreSQLAdapter::Connect(std::string_view connectionInfo)
+bool PostgreSQLAdapter::Connect(std::string_view connectionInfo, int timeoutSeconds)
 {
 	std::lock_guard lock(impl->mutex);
-	if (connectionInfo.empty() || connectionInfo.find('\0') != std::string_view::npos)
+	if (connectionInfo.empty() || connectionInfo.find('\0') != std::string_view::npos ||
+		timeoutSeconds < 1 || timeoutSeconds > 60)
 	{
-		impl->SetError("PostgreSQL connection string is empty or invalid.");
+		impl->SetError("PostgreSQL connection string or timeout is invalid.");
 		return false;
 	}
 	impl->settingsCache.Clear();
@@ -251,8 +252,11 @@ bool PostgreSQLAdapter::Connect(std::string_view connectionInfo)
 		impl->api->finish(impl->connection);
 		impl->connection = nullptr;
 	}
-	const std::string parameters(connectionInfo);
-	impl->connection = impl->api->connectDb(parameters.c_str());
+	const std::string connectionParameters(connectionInfo);
+	const std::string timeoutParameter = std::to_string(timeoutSeconds);
+	const char* keywords[] {"dbname", "connect_timeout", nullptr};
+	const char* values[] {connectionParameters.c_str(), timeoutParameter.c_str(), nullptr};
+	impl->connection = impl->api->connectDbParams(keywords, values, 1);
 	if (!impl->connection || impl->api->status(impl->connection) != ConnectionOk)
 	{
 		const char* message = impl->connection ? impl->api->errorMessage(impl->connection) : nullptr;

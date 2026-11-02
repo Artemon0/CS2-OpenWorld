@@ -30,6 +30,7 @@ transfer = true
 [persistence]
 provider = postgresql
 connection_env = OW_PG_CONNINFO
+connect_timeout = 5
 
 [cache]
 provider = memory

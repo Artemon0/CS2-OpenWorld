@@ -40,7 +40,7 @@ struct AdapterSettings
 	bool hud {true};
 	bool input {true};
 	bool mapOverview {true};
-	bool particleMenu {true};
+	bool particleMenu {};
 };
 
 struct ModuleSettings
@@ -79,6 +79,7 @@ public:
 	RoutingSettings routing;
 	std::string persistenceProvider;
 	std::string persistenceConnectionEnv;
+	int persistenceConnectTimeoutSeconds {5};
 	std::string cacheProvider;
 	std::string sharedCacheProvider;
 	std::size_t cacheWarmupWorkers {2};

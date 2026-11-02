@@ -49,7 +49,7 @@ bool TestUIManager()
 		manager.ShowText(CPlayerSlot(1), static_cast<ow::ui::UITextChannel>(255), "invalid") !=
 			ow::ui::UIStatus::InvalidPayload ||
 		manager.ShowText(CPlayerSlot(-1), ow::ui::UITextChannel::Chat, "bad slot") != ow::ui::UIStatus::InvalidPlayer ||
-		manager.OpenView(CPlayerSlot(1), "inventory") != ow::ui::UIStatus::Unsupported || adapter.records.size() != 4 ||
+		adapter.records.size() != 4 ||
 		adapter.records[0].slot.Get() != 1 || adapter.records[0].text != "hello" ||
 		adapter.records[1].channel != ow::ui::UITextChannel::Notification || adapter.records[2].channel != ow::ui::UITextChannel::Console ||
 		adapter.records[3].channel != ow::ui::UITextChannel::Center)

@@ -7,7 +7,7 @@ The implementation is server-authoritative. Steam authorization must be confirme
 ## Architecture decisions
 
 - Panorama is preferred for simple HUD elements that can be implemented through supported mechanisms, such as health and ammunition indicators.
-- Particle UI is a required subsystem for specialized menus and interfaces. Its runtime is being prototyped in C++ without SwiftlyS2; Workshop-delivered particle resources are required.
+- Particle UI is the planned subsystem for specialized menus. The current C++ particle menu is experimental and opt-in (`adapters.particle_menu = true`); it installs a KHook transmit filter and therefore defaults off unless explicitly enabled. Workshop-delivered particle resources are required.
 - Maps and shared assets are delivered as separate Workshop packages.
 - PostgreSQL is the source of truth for persistent player and world data. Cache backends are emergency-only fallback code and are excluded from the default plugin build.
 - PostgreSQL-backed server affinity routes authenticated players to a configured lobby on first join and persists their assigned server across the cluster. `!go <server_id>` stores the new route before redirecting. This is a reconnect, not a seamless transfer, and still needs live multi-server validation.

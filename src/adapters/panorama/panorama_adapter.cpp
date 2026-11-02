@@ -30,24 +30,29 @@ bool PanoramaAdapter::Initialize(SourceMM::ISmmAPI* metamodApi)
 		metamodApi->VInterfaceMatch(engineFactory, NETWORKMESSAGES_INTERFACE_VERSION));
 	gameEventSystem = static_cast<IGameEventSystem*>(
 		metamodApi->VInterfaceMatch(engineFactory, GAMEEVENTSYSTEM_INTERFACE_VERSION));
+	if (networkMessages)
+	{
+		textMessage = networkMessages->FindNetworkMessagePartial("TextMsg");
+	}
 	return IsInitialized();
 }
 
 void PanoramaAdapter::Shutdown()
 {
+	textMessage = nullptr;
 	networkMessages = nullptr;
 	gameEventSystem = nullptr;
 }
 
 bool PanoramaAdapter::IsInitialized() const
 {
-	return networkMessages && gameEventSystem;
+	return networkMessages && gameEventSystem && textMessage;
 }
 
 ow::ui::UICapabilities PanoramaAdapter::GetCapabilities() const
 {
 	ow::ui::UICapabilities capabilities;
-	const bool canSendText = IsInitialized() && networkMessages->FindNetworkMessagePartial("TextMsg");
+	const bool canSendText = IsInitialized();
 	capabilities.textNotifications = canSendText;
 	capabilities.perPlayerDelivery = canSendText;
 	return capabilities;
@@ -87,7 +92,7 @@ ow::ui::UIStatus PanoramaAdapter::ShowText(CPlayerSlot slot, ow::ui::UITextChann
 		return ow::ui::UIStatus::InvalidPayload;
 	}
 
-	INetworkMessageInternal* networkMessage = networkMessages->FindNetworkMessagePartial("TextMsg");
+	INetworkMessageInternal* networkMessage = textMessage;
 	if (!networkMessage)
 	{
 		return ow::ui::UIStatus::Unavailable;

@@ -51,7 +51,7 @@ public:
 	PostgreSQLAdapter(const PostgreSQLAdapter&) = delete;
 	PostgreSQLAdapter& operator=(const PostgreSQLAdapter&) = delete;
 
-	bool Connect(std::string_view connectionInfo);
+	bool Connect(std::string_view connectionInfo, int timeoutSeconds = 5);
 	bool Ping();
 	bool IsConnected() const;
 	std::string GetLastError() const;
