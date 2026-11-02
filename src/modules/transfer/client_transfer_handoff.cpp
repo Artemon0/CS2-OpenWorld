@@ -1,4 +1,5 @@
 #include "client_transfer_handoff.h"
+#include "utils/engine_server_compat.h"
 
 namespace ow::transfer
 {
@@ -33,8 +34,8 @@ bool ClientTransferHandoff::BeginRedirect(const std::string& transferId, CPlayer
 		return false;
 	}
 
-	const CSteamID* steamId = engine->GetClientSteamID(slot);
-	if (!steamId || !steamId->IsValid() || !engine->IsClientFullyAuthenticated(slot) ||
+	const CSteamID* steamId = utils::GetClientSteamID(engine, slot);
+	if (!steamId || !steamId->IsValid() || !utils::IsClientFullyAuthenticated(engine, slot) ||
 		steamId->ConvertToUint64() != transfer->snapshot.steamId)
 	{
 		SetError(error, "Player Steam authorization does not match the transfer record.");

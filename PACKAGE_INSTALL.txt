@@ -7,6 +7,8 @@ or game/csgo subdirectory.
 
 The Metamod VDF is included under addons/metamod and loads the plugin binary
 for the platform used to build this package. Install Metamod:Source first.
+Copy the entire addons/cs2-openworld directory, including its gamedata file;
+installing only the DLL prevents signature-backed features from initializing.
 
 Before starting the server:
 - Review addons/cs2-openworld/configs/openworld.ini and set the correct server

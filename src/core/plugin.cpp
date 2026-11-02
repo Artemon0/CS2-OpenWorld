@@ -4,6 +4,7 @@
 #include "player/player.h"
 #include "ui/particle/particle_menu_manager.h"
 #include "utils/addresses.h"
+#include "utils/engine_server_compat.h"
 #include "utils/utils.h"
 
 using ow::ui::particle::ParticleMenuManager;
@@ -276,12 +277,23 @@ bool OpenWorldPlugin::Load(PluginId id, ISmmAPI* ismm, char* error, size_t maxle
 	}
 
 	const char* configPathEnvironment = std::getenv("OW_CONFIG_PATH");
-	const std::string configPath =
+	const std::filesystem::path configuredConfigPath =
 		configPathEnvironment && configPathEnvironment[0] != '\0'
-			? configPathEnvironment
-			: "addons/cs2-openworld/configs/openworld.ini";
+			? std::filesystem::path(configPathEnvironment)
+			: std::filesystem::path("addons/cs2-openworld/configs/openworld.ini");
+	CBufferStringGrowable<256> gameDirectory;
+	engine->GetGameDir(gameDirectory);
+	const std::filesystem::path gameDirectoryPath(gameDirectory.Get());
+	if (gameDirectoryPath.empty())
+	{
+		SetError(error, maxlen, "The CS2 game directory is unavailable.");
+		return false;
+	}
+	const std::filesystem::path configPath = configuredConfigPath.is_absolute()
+												 ? configuredConfigPath
+												 : gameDirectoryPath / configuredConfigPath;
 	std::string configError;
-	clusterConfig = ow::core::ClusterConfig::Load(configPath, &configError);
+	clusterConfig = ow::core::ClusterConfig::Load(configPath.string(), &configError);
 	if (!clusterConfig)
 	{
 		SetError(error, maxlen, configError.c_str());
@@ -1103,10 +1115,10 @@ void OpenWorldPlugin::HandleCharacterChatCommand(CPlayerSlot slot, const CComman
 	}
 
 	PlayerInfo* player = FindPlayerMutable(slot);
-	const CSteamID* authenticatedSteamId = engine ? engine->GetClientSteamID(slot) : nullptr;
+	const CSteamID* authenticatedSteamId = utils::GetClientSteamID(engine, slot);
 	if (!player || !player->inServer || !player->fullyConnected || !player->steamAuthenticated || !engine ||
 		!authenticatedSteamId || !authenticatedSteamId->IsValid() ||
-		authenticatedSteamId->ConvertToUint64() != player->steamId || !engine->IsClientFullyAuthenticated(slot))
+		authenticatedSteamId->ConvertToUint64() != player->steamId || !utils::IsClientFullyAuthenticated(engine, slot))
 	{
 		SendPlayerText(slot, ow::ui::UITextChannel::Chat, "Character commands require a fully authenticated session.");
 		return;
@@ -1305,10 +1317,10 @@ void OpenWorldPlugin::HandleOpenInventory(CPlayerSlot slot)
 		return;
 	}
 	const PlayerInfo* player = FindPlayer(slot);
-	const CSteamID* authenticatedSteamId = engine ? engine->GetClientSteamID(slot) : nullptr;
+	const CSteamID* authenticatedSteamId = utils::GetClientSteamID(engine, slot);
 	if (!player || !player->inServer || !player->fullyConnected || !player->steamAuthenticated || !engine ||
 		!authenticatedSteamId || !authenticatedSteamId->IsValid() ||
-		authenticatedSteamId->ConvertToUint64() != player->steamId || !engine->IsClientFullyAuthenticated(slot) ||
+		authenticatedSteamId->ConvertToUint64() != player->steamId || !utils::IsClientFullyAuthenticated(engine, slot) ||
 		player->characterStatus != PlayerCharacterStatus::Ready || !player->character)
 	{
 		SendPlayerText(slot, ow::ui::UITextChannel::Chat, "Select or create a character first with !character.");
@@ -1380,10 +1392,10 @@ void OpenWorldPlugin::HandleBalanceChatCommand(CPlayerSlot slot, const CCommand&
 		return;
 	}
 	const PlayerInfo* player = FindPlayer(slot);
-	const CSteamID* authenticatedSteamId = engine ? engine->GetClientSteamID(slot) : nullptr;
+	const CSteamID* authenticatedSteamId = utils::GetClientSteamID(engine, slot);
 	if (!player || !player->inServer || !player->fullyConnected || !player->steamAuthenticated || !engine ||
 		!authenticatedSteamId || !authenticatedSteamId->IsValid() ||
-		authenticatedSteamId->ConvertToUint64() != player->steamId || !engine->IsClientFullyAuthenticated(slot) ||
+		authenticatedSteamId->ConvertToUint64() != player->steamId || !utils::IsClientFullyAuthenticated(engine, slot) ||
 		player->characterStatus != PlayerCharacterStatus::Ready || !player->character)
 	{
 		SendPlayerText(slot, ow::ui::UITextChannel::Chat, "Select or create a character first with !character.");
@@ -1436,10 +1448,10 @@ void OpenWorldPlugin::HandleTransferChatCommand(CPlayerSlot slot, const CCommand
 	}
 
 	PlayerInfo* player = FindPlayerMutable(slot);
-	const CSteamID* steamId = engine->GetClientSteamID(slot);
+	const CSteamID* steamId = utils::GetClientSteamID(engine, slot);
 	if (!player || !player->inServer || !player->fullyConnected || !player->steamAuthenticated ||
 		!steamId || !steamId->IsValid() || steamId->ConvertToUint64() != player->steamId ||
-		!engine->IsClientFullyAuthenticated(slot))
+		!utils::IsClientFullyAuthenticated(engine, slot))
 	{
 		engine->ClientPrintf(slot, "Transfer requires a fully Steam-authenticated connection.\n");
 		return;
@@ -1508,7 +1520,7 @@ void OpenWorldPlugin::RefreshSteamAuthorization(PlayerInfo& player)
 		return;
 	}
 
-	if (!engine->IsClientFullyAuthenticated(slot))
+	if (!utils::IsClientFullyAuthenticated(engine, slot))
 	{
 		player.steamAuthenticated = false;
 		player.readyForGameplay = false;
@@ -1530,7 +1542,7 @@ void OpenWorldPlugin::RefreshSteamAuthorization(PlayerInfo& player)
 		return;
 	}
 
-	const CSteamID* authenticatedSteamId = engine->GetClientSteamID(slot);
+	const CSteamID* authenticatedSteamId = utils::GetClientSteamID(engine, slot);
 	if (!authenticatedSteamId || !authenticatedSteamId->IsValid() ||
 		authenticatedSteamId->ConvertToUint64() != player.steamId)
 	{
@@ -1749,7 +1761,7 @@ void OpenWorldPlugin::EnforcePlayerRoute(PlayerInfo& player)
 		return;
 	}
 	const auto* destination = clusterConfig->FindServer(player.routeServerId);
-	if (!destination || !engine || !engine->IsClientFullyAuthenticated(CPlayerSlot(player.slot)))
+	if (!destination || !utils::IsClientFullyAuthenticated(engine, CPlayerSlot(player.slot)))
 	{
 		player.routeStatus = PlayerServerRouteStatus::Failed;
 		META_CONPRINTF("[%s] Cannot redirect slot %d to its assigned server '%s'.\n", PLUGIN_LOGTAG,
@@ -1776,7 +1788,7 @@ void OpenWorldPlugin::CheckAutomaticZoneTransfer(PlayerInfo& player)
 	if (!clusterConfig || !clusterConfig->routing.enforceServerAffinity || !clusterConfig->modules.transfer ||
 		!player.inServer || !player.active || !player.fullyConnected || !player.steamAuthenticated ||
 		player.routeStatus != PlayerServerRouteStatus::Ready || player.routeServerId != clusterConfig->serverId ||
-		!engine || !engine->IsClientFullyAuthenticated(CPlayerSlot(player.slot)) || !g_pPlayerManager)
+		!utils::IsClientFullyAuthenticated(engine, CPlayerSlot(player.slot)) || !g_pPlayerManager)
 	{
 		return;
 	}
