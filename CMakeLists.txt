@@ -138,6 +138,9 @@ foreach (_manifest ${_ow_all_manifests})
     unset(_m_code)
 endforeach ()
 
+# Single source of truth for compiler defines/flags: the plugin and every test target link it.
+ow_define_build_flags()
+
 
 file(GLOB_RECURSE OW_PLUGIN_SOURCES CONFIGURE_DEPENDS
         "${CMAKE_SOURCE_DIR}/src/core/*.cpp"
@@ -224,6 +227,17 @@ add_dependencies("${OW_META_NAME}" ow-protobuf-gen)
 ow_add_package("${OW_META_NAME}")
 
 if (BUILD_TESTING)
+    # Debug builds keep the SDK Assert() enabled, which needs LoggingSystem_LogAssert from the
+    # engine-provided libtier0. Linking the SDK runtime for tests keeps Debug test binaries linkable.
+    function(ow_link_test_runtime target)
+        if (WIN32)
+            target_link_libraries(${target} PRIVATE ${OW_SDK_WINDOWS_LIBS})
+        else ()
+            target_link_libraries(${target} PRIVATE ${OW_SDK_LINUX_DYNAMIC_LIBS} ${CMAKE_DL_LIBS})
+            set_target_properties(${target} PROPERTIES BUILD_RPATH "${OW_SDK_ROOT}/lib/linux64")
+        endif ()
+    endfunction()
+
     add_executable(particle-menu-tests
             tests/unit/particle_menu_tests.cpp
             src/ui/particle/map_overview_cache.cpp
@@ -231,8 +245,11 @@ if (BUILD_TESTING)
             src/ui/particle/particle_menu_sessions.cpp
     )
     target_compile_features(particle-menu-tests PRIVATE cxx_std_20)
+    target_link_libraries(particle-menu-tests PRIVATE ow_build_flags)
+    ow_link_test_runtime(particle-menu-tests)
     target_include_directories(particle-menu-tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
     add_test(NAME particle-menu-tests COMMAND particle-menu-tests)
+    set_tests_properties(particle-menu-tests PROPERTIES LABELS "unit")
 
     add_executable(ui-tests
             tests/unit/ui_tests.cpp
@@ -241,21 +258,15 @@ if (BUILD_TESTING)
             src/ui/input/input_manager.cpp
     )
     target_compile_features(ui-tests PRIVATE cxx_std_20)
+    target_link_libraries(ui-tests PRIVATE ow_build_flags)
+    ow_link_test_runtime(ui-tests)
     target_include_directories(ui-tests PRIVATE
             "${CMAKE_SOURCE_DIR}/src"
             "${OW_SDK_ROOT}/public"
             "${OW_SDK_ROOT}/public/tier0"
     )
-    if (MSVC)
-        target_compile_definitions(ui-tests PRIVATE
-                COMPILER_MSVC COMPILER_MSVC64 WIN32 WIN64 X64BITS PLATFORM_64BITS
-        )
-    else ()
-        target_compile_definitions(ui-tests PRIVATE
-                COMPILER_GCC LINUX _LINUX POSIX X64BITS PLATFORM_64BITS
-        )
-    endif ()
     add_test(NAME ui-tests COMMAND ui-tests)
+    set_tests_properties(ui-tests PROPERTIES LABELS "unit")
 
     add_executable(core-tests
             tests/unit/core_tests.cpp
@@ -282,7 +293,11 @@ if (BUILD_TESTING)
     endif ()
     	target_compile_features(core-tests PRIVATE cxx_std_20)
     	target_compile_definitions(core-tests PRIVATE OW_TEST_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
-    	target_link_libraries(core-tests PRIVATE Threads::Threads)
+    	target_link_libraries(core-tests PRIVATE ow_build_flags Threads::Threads)
+    	ow_link_test_runtime(core-tests)
+    	# The SDK headers included by core-tests pull in the generated protobuf headers, so building the
+    	# test binary on its own must generate them first.
+    	add_dependencies(core-tests ow-protobuf-gen)
     if (CMAKE_DL_LIBS)
         target_link_libraries(core-tests PRIVATE ${CMAKE_DL_LIBS})
     endif ()
@@ -296,17 +311,8 @@ if (BUILD_TESTING)
             "${OW_PROTOBUF_GEN_DIR}"
     )
     if (MSVC)
-        target_compile_definitions(core-tests PRIVATE
-                COMPILER_MSVC COMPILER_MSVC64 WIN32 WIN64 X64BITS PLATFORM_64BITS
-                GAME_DLL META_IS_SOURCE2 SOURCE_ENGINE=${OW_SDK_CODE}
-        )
         target_link_libraries(core-tests PRIVATE "ws2_32.lib")
-    else ()
-        target_compile_definitions(core-tests PRIVATE
-                COMPILER_GCC LINUX _LINUX POSIX X64BITS PLATFORM_64BITS
-                GAME_DLL META_IS_SOURCE2 SOURCE_ENGINE=${OW_SDK_CODE}
-                ${OW_SDK_LINUX_DEFINES}
-        )
     endif ()
     add_test(NAME core-tests COMMAND core-tests)
+    set_tests_properties(core-tests PROPERTIES LABELS "unit")
 endif ()

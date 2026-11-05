@@ -52,7 +52,7 @@ private:
 	{
 		CacheEntry value;
 		std::size_t bytes {};
-		std::list<std::string>::iterator lruPosition;
+		std::list<std::string>::iterator lruPosition {};
 	};
 
 	void Remove(std::unordered_map<std::string, Entry>::iterator entry);
@@ -65,6 +65,7 @@ private:
 	const std::size_t maxEntries;
 	const std::size_t maxBytes;
 	std::size_t bytesInUse {};
+	bool enabled {true};
 };
 
 struct CacheLoadValue
@@ -105,6 +106,8 @@ public:
 								std::chrono::seconds ttl, int priority, Loader loader);
 	WarmupStatus GetStatus(std::string_view key, std::uint64_t minimumRevision = 0,
 						   std::string* error = nullptr);
+	// False when the warmer was constructed with unusable limits; every request is then rejected.
+	bool IsEnabled() const noexcept;
 
 private:
 	struct Job
@@ -127,5 +130,6 @@ private:
 	std::unordered_map<std::string, std::string> failures;
 	std::vector<std::thread> workers;
 	bool stopping {};
+	bool enabled {true};
 };
 } // namespace ow::persistence

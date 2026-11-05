@@ -29,6 +29,8 @@ public:
 	void Clear();
 	std::size_t Size() const;
 	std::size_t BytesInUse() const;
+	// False when the cache was constructed with unusable limits; every operation then fails safely.
+	bool IsEnabled() const noexcept;
 
 private:
 	struct Entry
@@ -36,7 +38,7 @@ private:
 		PlayerSettings settings;
 		std::chrono::steady_clock::time_point expiresAt;
 		std::size_t bytes {};
-		std::list<std::uint64_t>::iterator lruPosition;
+		std::list<std::uint64_t>::iterator lruPosition {};
 	};
 
 	void Remove(std::unordered_map<std::uint64_t, Entry>::iterator entry);
@@ -50,5 +52,6 @@ private:
 	const std::size_t maxBytes;
 	const std::chrono::milliseconds ttl;
 	std::size_t bytesInUse {};
+	bool enabled {true};
 };
 } // namespace ow::adapters

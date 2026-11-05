@@ -23,6 +23,11 @@
 #include "modules/persistence/player_settings_worker.h"
 #include "modules/persistence/player_character_worker.h"
 #include "modules/persistence/player_route_worker.h"
+#ifdef OW_ENABLE_CACHE_FALLBACK
+// The cache fallback members below need the complete ICacheStore/AsyncCacheWarmer types; without
+// this include the opt-in build fails to compile.
+#include "modules/persistence/cache_manager.h"
+#endif
 #include "modules/core/core_module.h"
 #include "modules/character/character_manager.h"
 #include "modules/transfer/transfer_module.h"

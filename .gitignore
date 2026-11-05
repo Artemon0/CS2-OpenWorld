@@ -11,6 +11,5 @@ dist/
 compile_commands.json
 .clangd
 /.idea/
-/hl2sdk-cs2/
-/metamod-source/
 /.kilo/
+*.bak

@@ -315,10 +315,10 @@ void ParticleMenuManager::HandleButtons(ActiveMenuSession& session, CCSPlayerPaw
 		return;
 	}
 
-	uint64_t currentButtons[3] {};
+	uint64 currentButtons[3] {};
 	movementServices->m_nButtons().GetButtons(currentButtons);
 
-	const uint64_t newlyPressed0 = currentButtons[0] & ~session.lastButtons[0];
+	const uint64 newlyPressed0 = currentButtons[0] & ~session.lastButtons[0];
 	session.lastButtons[0] = currentButtons[0];
 	session.lastButtons[1] = currentButtons[1];
 	session.lastButtons[2] = currentButtons[2];
@@ -453,7 +453,8 @@ void ParticleMenuManager::PlaySound(CPlayerSlot slot, const char* soundPath)
 
 	char command[256];
 	snprintf(command, sizeof(command), "play %s\n", soundPath);
-	interfaces::pEngine->ClientCommand(slot, command);
+	// ClientCommand is a printf-style variadic: never pass the buffer as the format string.
+	interfaces::pEngine->ClientCommand(slot, "%s", command);
 }
 
 void ParticleMenuManager::FreezePlayer(ActiveMenuSession& session, CCSPlayerPawn* pawn)

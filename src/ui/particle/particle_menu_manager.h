@@ -37,7 +37,7 @@ struct ActiveMenuSession
 	std::int64_t nextActivationMs {0};
 	bool moveFrozen {false};
 	MoveType_t originalMoveType {MOVETYPE_WALK};
-	uint64_t lastButtons[3] {0, 0, 0};
+	uint64 lastButtons[3] {0, 0, 0};
 };
 
 class ParticleMenuManager

@@ -1,8 +1,6 @@
 #include "cache_manager.h"
 
 #include <algorithm>
-#include <exception>
-#include <stdexcept>
 #include <utility>
 
 namespace ow::persistence
@@ -10,14 +8,20 @@ namespace ow::persistence
 MemoryCache::MemoryCache(std::size_t maxEntries, std::size_t maxBytes)
 	: maxEntries(maxEntries), maxBytes(maxBytes)
 {
+	// Fail-closed: no exceptions in this build, so an unusable capacity disables the cache instead
+	// of aborting the server.
 	if (maxEntries == 0 || maxBytes == 0)
 	{
-		throw std::invalid_argument("Memory cache capacity must be positive.");
+		enabled = false;
 	}
 }
 
 std::optional<CacheEntry> MemoryCache::Get(std::string_view key, std::uint64_t minimumRevision)
 {
+	if (!enabled)
+	{
+		return std::nullopt;
+	}
 	std::lock_guard lock(mutex);
 	const auto found = entries.find(std::string(key));
 	if (found == entries.end())
@@ -41,7 +45,7 @@ std::optional<CacheEntry> MemoryCache::Get(std::string_view key, std::uint64_t m
 
 bool MemoryCache::Put(std::string key, std::string value, std::uint64_t revision, std::chrono::seconds ttl)
 {
-	if (key.empty() || revision == 0 || ttl <= std::chrono::seconds::zero())
+	if (!enabled || key.empty() || revision == 0 || ttl <= std::chrono::seconds::zero())
 	{
 		return false;
 	}
@@ -64,28 +68,26 @@ bool MemoryCache::Put(std::string key, std::string value, std::uint64_t revision
 	{
 		Remove(existing);
 	}
-	while (entries.size() >= maxEntries || bytesInUse > maxBytes - entryBytes)
+	while (entries.size() >= maxEntries || (bytesInUse + entryBytes > maxBytes && !entries.empty()))
 	{
 		EvictLeastRecentlyUsed();
 	}
-	leastRecentlyUsed.push_front(key);
-	try
-	{
-		entries.emplace(std::move(key),
-						Entry{CacheEntry{std::move(value), revision, now + ttl}, entryBytes,
-							  leastRecentlyUsed.begin()});
-	}
-	catch (...)
-	{
-		leastRecentlyUsed.pop_front();
-		throw;
-	}
+	// Insert the map node first: the LRU list must never hold an iterator into a node that was not
+	// created, which is what corrupted the heap in the previous implementation.
+	const auto inserted = entries.try_emplace(std::move(key),
+							Entry {CacheEntry {std::move(value), revision, now + ttl}, entryBytes, {}});
+	leastRecentlyUsed.push_front(inserted.first->first);
+	inserted.first->second.lruPosition = leastRecentlyUsed.begin();
 	bytesInUse += entryBytes;
 	return true;
 }
 
 bool MemoryCache::Invalidate(std::string_view key)
 {
+	if (!enabled)
+	{
+		return false;
+	}
 	std::lock_guard lock(mutex);
 	const auto found = entries.find(std::string(key));
 	if (found == entries.end())
@@ -142,42 +144,41 @@ void MemoryCache::PurgeExpired(std::chrono::steady_clock::time_point now)
 
 void MemoryCache::EvictLeastRecentlyUsed()
 {
+	if (leastRecentlyUsed.empty())
+	{
+		return;
+	}
 	const auto leastRecentlyUsedEntry = entries.find(leastRecentlyUsed.back());
+	if (leastRecentlyUsedEntry == entries.end())
+	{
+		// Defensive: a desynchronised LRU list must never reach erase() with a bogus key.
+		leastRecentlyUsed.pop_back();
+		return;
+	}
 	Remove(leastRecentlyUsedEntry);
 }
 
 AsyncCacheWarmer::AsyncCacheWarmer(ICacheStore& cache, std::size_t workerCount, std::size_t maxQueuedJobs)
 	: cache(cache), maxQueuedJobs(maxQueuedJobs)
 {
+	// Fail-closed: without valid limits the warmer stays disabled and rejects every request.
 	if (workerCount == 0 || maxQueuedJobs == 0)
 	{
-		throw std::invalid_argument("Cache warmer requires at least one worker and one queue slot.");
+		stopping = true;
+		enabled = false;
+		return;
 	}
 
 	workers.reserve(workerCount);
-	try
+	for (std::size_t index = 0; index < workerCount; ++index)
 	{
-		for (std::size_t index = 0; index < workerCount; ++index)
-		{
-			workers.emplace_back(&AsyncCacheWarmer::WorkerLoop, this);
-		}
+		workers.emplace_back(&AsyncCacheWarmer::WorkerLoop, this);
 	}
-	catch (...)
-	{
-		{
-			std::lock_guard lock(mutex);
-			stopping = true;
-		}
-		workAvailable.notify_all();
-		for (std::thread& worker : workers)
-		{
-			if (worker.joinable())
-			{
-				worker.join();
-			}
-		}
-		throw;
-	}
+}
+
+bool AsyncCacheWarmer::IsEnabled() const noexcept
+{
+	return enabled;
 }
 
 AsyncCacheWarmer::~AsyncCacheWarmer()
@@ -290,30 +291,19 @@ void AsyncCacheWarmer::WorkerLoop()
 		}
 
 		std::string failure;
-		try
+		const std::optional<CacheLoadValue> loaded = job.loader();
+		if (!loaded)
 		{
-			const std::optional<CacheLoadValue> loaded = job.loader();
-			if (!loaded)
-			{
-				failure = "Cache loader returned no value.";
-			}
-			else if (loaded->revision < job.minimumRevision)
-			{
-				failure = "Cache loader returned a stale revision.";
-			}
-			else if (!cache.Put(job.key, loaded->value, loaded->revision, job.ttl) &&
-					 !cache.Get(job.key, job.minimumRevision))
-			{
-				failure = "Cache store rejected the loaded value.";
-			}
+			failure = "Cache loader returned no value.";
 		}
-		catch (const std::exception& exception)
+		else if (loaded->revision < job.minimumRevision)
 		{
-			failure = exception.what();
+			failure = "Cache loader returned a stale revision.";
 		}
-		catch (...)
+		else if (!cache.Put(job.key, loaded->value, loaded->revision, job.ttl) &&
+				 !cache.Get(job.key, job.minimumRevision))
 		{
-			failure = "Cache loader failed with an unknown exception.";
+			failure = "Cache store rejected the loaded value.";
 		}
 
 		{

@@ -1,7 +1,5 @@
 #include "player_route_worker.h"
 
-#include <exception>
-#include <stdexcept>
 #include <utility>
 
 namespace ow::persistence
@@ -15,18 +13,33 @@ bool IsValidRouteText(std::string_view value, std::size_t maxBytes)
 } // namespace
 
 PlayerRouteWorker::PlayerRouteWorker(Handler handler, std::size_t maxOutstanding)
-	: handler(std::move(handler)), maxOutstanding(maxOutstanding)
+	: worker(MakeWorker(std::move(handler), maxOutstanding))
 {
-	if (!this->handler || maxOutstanding == 0)
-	{
-		throw std::invalid_argument("Player route worker requires a handler and positive queue capacity.");
-	}
-	worker = std::thread(&PlayerRouteWorker::WorkerLoop, this);
 }
 
-PlayerRouteWorker::~PlayerRouteWorker()
+// Returns a stopped worker instead of throwing when the handler is missing.
+PlayerRouteWorker::Worker PlayerRouteWorker::MakeWorker(Handler handler, std::size_t maxOutstanding)
 {
-	Stop();
+	if (!handler)
+	{
+		return Worker {Worker::Handler {}, maxOutstanding};
+	}
+	return Worker {
+		[handler = std::move(handler)](const PlayerRouteJob& job, PlayerRouteResult& result)
+		{
+			result.operation = job.operation;
+			handler(job, result);
+			if (result.error.empty() && result.serverId.empty())
+			{
+				result.error = "Player route handler returned no server.";
+			}
+		},
+		maxOutstanding};
+}
+
+bool PlayerRouteWorker::IsRunning() const noexcept
+{
+	return worker.IsRunning();
 }
 
 bool PlayerRouteWorker::RequestResolve(std::uint64_t requestId, std::uint64_t steamId, std::string_view environment,
@@ -58,99 +71,16 @@ bool PlayerRouteWorker::Request(PlayerRouteJob job)
 	{
 		return false;
 	}
-	{
-		std::lock_guard lock(mutex);
-		if (stopping || outstanding >= maxOutstanding)
-		{
-			return false;
-		}
-		jobs.push_back(std::move(job));
-		++outstanding;
-	}
-	workAvailable.notify_one();
-	return true;
+	return worker.Submit(std::move(job));
 }
 
 std::optional<PlayerRouteResult> PlayerRouteWorker::TryTakeResult()
 {
-	std::lock_guard lock(mutex);
-	if (results.empty())
-	{
-		return std::nullopt;
-	}
-	PlayerRouteResult result = std::move(results.front());
-	results.pop_front();
-	--outstanding;
-	return result;
+	return worker.TryTakeResult();
 }
 
-void PlayerRouteWorker::Stop()
+void PlayerRouteWorker::Stop() noexcept
 {
-	{
-		std::lock_guard lock(mutex);
-		if (!stopping)
-		{
-			stopping = true;
-			outstanding -= jobs.size();
-			jobs.clear();
-		}
-	}
-	workAvailable.notify_all();
-	if (worker.joinable())
-	{
-		worker.join();
-	}
-	std::lock_guard lock(mutex);
-	results.clear();
-	outstanding = 0;
-}
-
-void PlayerRouteWorker::WorkerLoop()
-{
-	while (true)
-	{
-		PlayerRouteJob job;
-		{
-			std::unique_lock lock(mutex);
-			workAvailable.wait(lock, [this] { return stopping || !jobs.empty(); });
-			if (stopping)
-			{
-				return;
-			}
-			job = std::move(jobs.front());
-			jobs.pop_front();
-		}
-
-		PlayerRouteResult result;
-		result.requestId = job.requestId;
-		result.steamId = job.steamId;
-		result.operation = job.operation;
-		try
-		{
-			handler(job, result);
-			if (result.error.empty() && result.serverId.empty())
-			{
-				result.error = "Player route handler returned no server.";
-			}
-		}
-		catch (const std::exception& exception)
-		{
-			result.error = exception.what();
-		}
-		catch (...)
-		{
-			result.error = "Player route handler failed with an unknown exception.";
-		}
-
-		{
-			std::lock_guard lock(mutex);
-			if (stopping)
-			{
-				--outstanding;
-				continue;
-			}
-			results.push_back(std::move(result));
-		}
-	}
+	worker.Stop();
 }
 } // namespace ow::persistence

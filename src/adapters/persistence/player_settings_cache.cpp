@@ -1,6 +1,5 @@
 #include "player_settings_cache.h"
 
-#include <stdexcept>
 #include <utility>
 
 namespace ow::adapters
@@ -8,15 +7,22 @@ namespace ow::adapters
 PlayerSettingsCache::PlayerSettingsCache(std::size_t maxEntries, std::size_t maxBytes, std::chrono::milliseconds ttl)
 	: maxEntries(maxEntries), maxBytes(maxBytes), ttl(ttl)
 {
+	// Fail-closed: the plugin is built without exceptions, so an invalid configuration disables the
+	// cache (every lookup misses) instead of throwing or aborting the server.
 	if (maxEntries == 0 || maxBytes == 0 || ttl <= std::chrono::milliseconds::zero())
 	{
-		throw std::invalid_argument("Player settings cache limits and TTL must be positive.");
+		enabled = false;
 	}
+}
+
+bool PlayerSettingsCache::IsEnabled() const noexcept
+{
+	return enabled;
 }
 
 std::optional<PlayerSettings> PlayerSettingsCache::Get(std::uint64_t steamId)
 {
-	if (steamId == 0)
+	if (!enabled || steamId == 0)
 	{
 		return std::nullopt;
 	}
@@ -38,7 +44,7 @@ std::optional<PlayerSettings> PlayerSettingsCache::Get(std::uint64_t steamId)
 
 bool PlayerSettingsCache::Put(std::uint64_t steamId, PlayerSettings settings)
 {
-	if (steamId == 0 || settings.settingsJson.size() > maxBytes)
+	if (!enabled || steamId == 0 || settings.settingsJson.size() > maxBytes)
 	{
 		return false;
 	}
@@ -46,7 +52,7 @@ bool PlayerSettingsCache::Put(std::uint64_t steamId, PlayerSettings settings)
 	std::lock_guard lock(mutex);
 	const auto now = std::chrono::steady_clock::now();
 	PurgeExpired(now);
-	auto existing = entries.find(steamId);
+	const auto existing = entries.find(steamId);
 	if (existing != entries.end() && existing->second.settings.revision > settings.revision)
 	{
 		return false;
@@ -55,28 +61,28 @@ bool PlayerSettingsCache::Put(std::uint64_t steamId, PlayerSettings settings)
 	{
 		Remove(existing);
 	}
-	while (entries.size() >= maxEntries || bytesInUse > maxBytes - settings.settingsJson.size())
+
+	const std::size_t entryBytes = settings.settingsJson.size();
+	while (entries.size() >= maxEntries || (bytesInUse + entryBytes > maxBytes && !entries.empty()))
 	{
 		EvictLeastRecentlyUsed();
 	}
 
-	const std::size_t entryBytes = settings.settingsJson.size();
+	// Insert the map node first: the LRU list must never hold an iterator into a node that failed to
+	// be created, which is what corrupted the heap in the previous implementation.
+	const auto inserted = entries.try_emplace(steamId, Entry {std::move(settings), now + ttl, entryBytes, {}});
 	leastRecentlyUsed.push_front(steamId);
-	try
-	{
-		entries.emplace(steamId, Entry{std::move(settings), now + ttl, entryBytes, leastRecentlyUsed.begin()});
-	}
-	catch (...)
-	{
-		leastRecentlyUsed.pop_front();
-		throw;
-	}
+	inserted.first->second.lruPosition = leastRecentlyUsed.begin();
 	bytesInUse += entryBytes;
 	return true;
 }
 
 bool PlayerSettingsCache::Invalidate(std::uint64_t steamId)
 {
+	if (!enabled)
+	{
+		return false;
+	}
 	std::lock_guard lock(mutex);
 	const auto found = entries.find(steamId);
 	if (found == entries.end())
@@ -133,7 +139,17 @@ void PlayerSettingsCache::PurgeExpired(std::chrono::steady_clock::time_point now
 
 void PlayerSettingsCache::EvictLeastRecentlyUsed()
 {
+	if (leastRecentlyUsed.empty())
+	{
+		return;
+	}
 	const auto leastRecentlyUsedEntry = entries.find(leastRecentlyUsed.back());
+	if (leastRecentlyUsedEntry == entries.end())
+	{
+		// Defensive: a desynchronised LRU list must never reach erase() with a bogus key.
+		leastRecentlyUsed.pop_back();
+		return;
+	}
 	Remove(leastRecentlyUsedEntry);
 }
 } // namespace ow::adapters

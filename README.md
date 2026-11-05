@@ -18,13 +18,56 @@ Operator instructions for the cluster config, Redis, PostgreSQL schema, deployme
 Russian manual map-authoring suggestions and portal setup are in [РУКОВОДСТВО_ПО_РУЧНОЙ_КАРТЕ.md](./РУКОВОДСТВО_ПО_РУЧНОЙ_КАРТЕ.md).
 Original project contributions are proprietary; third-party terms and commercial-distribution caveats are documented in [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md). This notice does not establish that commercial use of a CS2 modification is authorized.
 
+## Quick start
+
+The repository ships one interactive installer per platform. It checks every dependency, asks
+before installing anything, and asks for a path when a tool exists but is not on `PATH`
+(PostgreSQL, Redis, MSVC, Clang, CMake, Ninja).
+
+```bash
+scripts/install.sh --check     # report only, changes nothing
+scripts/install.sh             # install what is missing, create .env, build, run tests
+```
+
+```powershell
+.\scripts\install.ps1 -Check
+.\scripts\install.ps1
+```
+
+Both scripts initialize the `hl2sdk-cs2` and `metamod-source` submodules, generate a `.env` with
+strong random passwords, optionally bootstrap the PostgreSQL roles/database/migrations, and finish
+by building the plugin and running `ctest`.
+
 ## Build
 
-Requirements: CMake, 64-bit MSVC on Windows or Clang on Linux, hl2sdk-cs2, and Metamod:Source.
+Requirements: CMake 3.19+, 64-bit MSVC on Windows or Clang on Linux, hl2sdk-cs2, and Metamod:Source.
+
+```bash
+git submodule update --init --recursive
+export CC=clang CXX=clang++
+cmake -S . -B build-linux -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build-linux -j
+ctest --test-dir build-linux --output-on-failure
+```
 
 ```powershell
 cmake -S . -B build -A x64
 cmake --build build --config Release
+```
+
+The plugin is built with **exceptions disabled** (`-fno-exceptions` / `_HAS_EXCEPTIONS=0`). New code
+must report failures through return values, `bool` flags, `std::optional`, or an `IsRunning()` /
+`IsEnabled()` accessor. Never add `throw`, `try`, or `catch` to a target that links `ow_build_flags`;
+the unit tests link the very same interface library, so a build break is caught by `ctest` before a
+release. See `cmake/CompilerSettings.cmake` for the flag set shared by the plugin and the tests.
+
+Gamedata (`gamedata/cs2-openworld.games.txt`) drives every engine offset and signature. Verify it
+before shipping to a live server:
+
+```bash
+tools/update_offsets.py --check                      # keys used by src/ must exist
+tools/update_offsets.py --check --binary libserver.so # every signature must match exactly once
+tools/update_offsets.py --fetch                       # current CS2 build from a2x/cs2-dumper
 ```
 
 The standard build includes a small, process-local cache for player settings only (30-second TTL, up to 512 entries and 4 MiB of payload). Character state, inventory, money, and transfer data are never served from this cache; they require authoritative persistence and revision/idempotency checks. The optional generic LRU/Redis/warmup fallback sources are excluded by default; -DOW_ENABLE_CACHE_FALLBACK=ON only includes those experimental components and does not make them part of player login or transfer.

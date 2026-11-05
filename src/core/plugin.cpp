@@ -355,12 +355,22 @@ bool OpenWorldPlugin::Load(PluginId id, ISmmAPI* ismm, char* error, size_t maxle
 	}
 	cacheWarmer =
 		std::make_unique<ow::persistence::AsyncCacheWarmer>(*cacheStore, clusterConfig->cacheWarmupWorkers, clusterConfig->cacheWarmupQueueCapacity);
+	if (!cacheWarmer->IsEnabled())
+	{
+		cacheWarmer.reset();
+		cacheStore.reset();
+		persistenceAdapter.reset();
+		clusterConfig.reset();
+		SetError(error, maxlen, "Cache warmer could not be started; check the cache warmup settings.");
+		return false;
+	}
 #else
 	META_CONPRINTF("[%s] Cache fallback is disabled; cache settings in openworld.ini are ignored.\n", PLUGIN_LOGTAG);
 #endif
 	if (clusterConfig->adapters.postgresql)
 	{
-		try
+		// Worker construction cannot throw in this build (-fno-exceptions); a rejected configuration
+		// is detected through IsRunning() right after the block below.
 		{
 			if (clusterConfig->routing.enforceServerAffinity)
 			{
@@ -479,7 +489,13 @@ bool OpenWorldPlugin::Load(PluginId id, ISmmAPI* ismm, char* error, size_t maxle
 					});
 			}
 		}
-		catch (const std::exception& exception)
+
+		const bool routeWorkerFailed = clusterConfig->routing.enforceServerAffinity &&
+				(!playerRouteWorker || !playerRouteWorker->IsRunning());
+		const bool settingsWorkerFailed = !playerSettingsWorker || !playerSettingsWorker->IsRunning();
+		const bool characterWorkerFailed = clusterConfig->modules.characters &&
+				(!playerCharacterWorker || !playerCharacterWorker->IsRunning());
+		if (routeWorkerFailed || settingsWorkerFailed || characterWorkerFailed)
 		{
 			playerRouteWorker.reset();
 			playerCharacterWorker.reset();
@@ -490,7 +506,7 @@ bool OpenWorldPlugin::Load(PluginId id, ISmmAPI* ismm, char* error, size_t maxle
 #endif
 			persistenceAdapter.reset();
 			clusterConfig.reset();
-			SetError(error, maxlen, exception.what());
+			SetError(error, maxlen, "Persistence workers could not be started; check the worker queue settings.");
 			return false;
 		}
 	}

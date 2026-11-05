@@ -1,16 +1,14 @@
 #pragma once
 
 #include "adapters/persistence/postgres_adapter.h"
+#include "core/async_worker.h"
 
-#include <condition_variable>
 #include <cstddef>
 #include <cstdint>
-#include <deque>
 #include <functional>
-#include <mutex>
 #include <optional>
 #include <string>
-#include <thread>
+#include <string_view>
 
 namespace ow::persistence
 {
@@ -40,36 +38,34 @@ struct PlayerRouteResult
 	std::string error;
 };
 
+// Resolves and assigns player routes off the game thread. Fail-closed on invalid configuration:
+// the worker stays stopped and IsRunning() reports false.
 class PlayerRouteWorker
 {
 public:
 	using Handler = std::function<void(const PlayerRouteJob&, PlayerRouteResult&)>;
 
 	explicit PlayerRouteWorker(Handler handler, std::size_t maxOutstanding = 256);
-	~PlayerRouteWorker();
+	~PlayerRouteWorker() = default;
 
 	PlayerRouteWorker(const PlayerRouteWorker&) = delete;
 	PlayerRouteWorker& operator=(const PlayerRouteWorker&) = delete;
 
+	bool IsRunning() const noexcept;
 	bool RequestResolve(std::uint64_t requestId, std::uint64_t steamId, std::string_view environment,
 						std::string_view currentServerId, std::string_view lobbyServerId);
 	bool RequestAssign(std::uint64_t requestId, std::uint64_t steamId, std::string_view environment,
 					   std::string_view destinationServerId);
 	std::optional<PlayerRouteResult> TryTakeResult();
-	void Stop();
+	void Stop() noexcept;
 
 private:
-	bool Request(PlayerRouteJob job);
-	void WorkerLoop();
+	using Worker = core::AsyncWorker<PlayerRouteJob, PlayerRouteResult>;
 
-	Handler handler;
-	const std::size_t maxOutstanding;
-	std::mutex mutex;
-	std::condition_variable workAvailable;
-	std::deque<PlayerRouteJob> jobs;
-	std::deque<PlayerRouteResult> results;
-	std::thread worker;
-	std::size_t outstanding {};
-	bool stopping {};
+	static Worker MakeWorker(Handler handler, std::size_t maxOutstanding);
+
+	bool Request(PlayerRouteJob job);
+
+	Worker worker;
 };
 } // namespace ow::persistence

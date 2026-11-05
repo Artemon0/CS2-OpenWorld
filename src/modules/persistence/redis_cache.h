@@ -37,6 +37,7 @@ private:
 	void SetLastError(std::string message) const;
 
 	RedisCacheConfig config;
+	bool configValid {true};
 	mutable std::mutex errorMutex;
 	mutable std::string lastError;
 };

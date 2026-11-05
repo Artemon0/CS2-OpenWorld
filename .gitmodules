@@ -2,9 +2,8 @@
 	path = hl2sdk-cs2
 	url = https://github.com/alliedmodders/hl2sdk.git
 	branch = cs2
+	shallow = true
 [submodule "metamod-source"]
 	path = metamod-source
 	url = https://github.com/alliedmodders/metamod-source.git
-[submodule "temp_swift_menu"]
-	path = temp_swift_menu
-	url = https://github.com/nicedayzhu/SwiftParticleMenuDemo.git
+	shallow = true

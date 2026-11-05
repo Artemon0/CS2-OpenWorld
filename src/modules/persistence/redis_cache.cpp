@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <charconv>
 #include <limits>
-#include <stdexcept>
 #include <utility>
 
 #ifdef _WIN32
@@ -80,61 +79,101 @@ struct ParsedReply
 	bool nil {};
 };
 
-struct IncompleteReply
+enum class ParseStatus
 {
+	Ok,
+	Incomplete,
+	Malformed
 };
 
-std::string ReadLine(const std::string& data, std::size_t& offset)
+struct ParseResult
+{
+	ParseStatus status {ParseStatus::Incomplete};
+	ParsedReply reply;
+	std::string error;
+};
+
+ParseResult MakeMalformed(std::string message)
+{
+	ParseResult result;
+	result.status = ParseStatus::Malformed;
+	result.error = std::move(message);
+	return result;
+}
+
+// Reads one CRLF-terminated line. A partially received reply is a normal condition on a stream
+// socket, so it is reported as ParseStatus::Incomplete instead of throwing.
+ParseStatus ReadLine(const std::string& data, std::size_t& offset, std::string& line)
 {
 	const std::size_t end = data.find("\r\n", offset);
 	if (end == std::string::npos)
 	{
-		throw IncompleteReply{};
+		return ParseStatus::Incomplete;
 	}
-	std::string result = data.substr(offset, end - offset);
+	line.assign(data, offset, end - offset);
 	offset = end + 2;
-	return result;
+	return ParseStatus::Ok;
 }
 
-ParsedReply ParseReply(const std::string& data, std::size_t& offset)
+ParseResult ParseReply(const std::string& data, std::size_t& offset)
 {
 	if (offset >= data.size())
 	{
-		throw IncompleteReply{};
+		return {};
 	}
 	const char type = data[offset++];
 	if (type == '+' || type == '-' || type == ':')
 	{
-		return {type, ReadLine(data, offset)};
+		std::string line;
+		if (ReadLine(data, offset, line) != ParseStatus::Ok)
+		{
+			return {};
+		}
+		ParseResult result;
+		result.status = ParseStatus::Ok;
+		result.reply = ParsedReply {type, std::move(line), false};
+		return result;
 	}
-	if (type == '$')
+	if (type != '$')
 	{
-		const std::string lengthText = ReadLine(data, offset);
-		long long length {};
-		const auto parsed = std::from_chars(lengthText.data(), lengthText.data() + lengthText.size(), length);
-		if (parsed.ec != std::errc {} || parsed.ptr != lengthText.data() + lengthText.size() || length < -1 ||
-			length > 16 * 1024 * 1024)
-		{
-			throw std::runtime_error("Redis returned an invalid bulk string length.");
-		}
-		if (length == -1)
-		{
-			return {'$', {}, true};
-		}
-		const std::size_t byteCount = static_cast<std::size_t>(length);
-		if (byteCount > data.size() - offset || data.size() - offset - byteCount < 2)
-		{
-			throw IncompleteReply{};
-		}
-		if (data[offset + byteCount] != '\r' || data[offset + byteCount + 1] != '\n')
-		{
-			throw std::runtime_error("Redis returned a malformed bulk string.");
-		}
-		std::string value = data.substr(offset, byteCount);
-		offset += byteCount + 2;
-		return {'$', std::move(value)};
+		return MakeMalformed("Redis returned an unsupported RESP2 reply.");
 	}
-	throw std::runtime_error("Redis returned an unsupported RESP2 reply.");
+
+	std::string lengthText;
+	if (ReadLine(data, offset, lengthText) != ParseStatus::Ok)
+	{
+		return {};
+	}
+	long long length {};
+	const auto parsed = std::from_chars(lengthText.data(), lengthText.data() + lengthText.size(), length);
+	if (parsed.ec != std::errc {} || parsed.ptr != lengthText.data() + lengthText.size() || length < -1 ||
+		length > 16 * 1024 * 1024)
+	{
+		return MakeMalformed("Redis returned an invalid bulk string length.");
+	}
+	if (length == -1)
+	{
+		ParseResult result;
+		result.status = ParseStatus::Ok;
+		result.reply = ParsedReply {'$', {}, true};
+		return result;
+	}
+
+	const std::size_t byteCount = static_cast<std::size_t>(length);
+	if (byteCount > data.size() - offset || data.size() - offset - byteCount < 2)
+	{
+		return {};
+	}
+	if (data[offset + byteCount] != '\r' || data[offset + byteCount + 1] != '\n')
+	{
+		return MakeMalformed("Redis returned a malformed bulk string.");
+	}
+	std::string value = data.substr(offset, byteCount);
+	offset += byteCount + 2;
+	ParseResult result;
+	result.status = ParseStatus::Ok;
+	result.reply = ParsedReply {'$', std::move(value), false};
+	return result;
 }
 
 void AppendCommand(std::string& output, const std::vector<std::string>& command)
@@ -264,38 +303,44 @@ std::optional<ParsedReply> ReceiveReply(Socket socket, std::string& error)
 	while (response.size() <= 16 * 1024 * 1024)
 	{
 		std::size_t offset = 0;
-		try
+		const ParseResult parsed = ParseReply(response, offset);
+		if (parsed.status == ParseStatus::Ok)
 		{
-			ParsedReply reply = ParseReply(response, offset);
-			return reply;
+			return parsed.reply;
 		}
-		catch (const IncompleteReply&)
+		if (parsed.status == ParseStatus::Malformed)
 		{
-		}
-		catch (const std::exception& exception)
-		{
-			error = exception.what();
+			error = parsed.error;
 			return std::nullopt;
 		}
+
 		const int received = recv(socket, buffer, sizeof(buffer), 0);
 		if (received <= 0)
 		{
+			if (error.empty())
+			{
+				error = "Redis closed the connection before a complete reply arrived.";
+			}
 			return std::nullopt;
 		}
 		response.append(buffer, static_cast<std::size_t>(received));
 	}
+	error = "Redis reply exceeded the 16 MiB limit.";
 	return std::nullopt;
 }
 } // namespace
 
 RedisCache::RedisCache(RedisCacheConfig config) : config(std::move(config))
 {
+	// Fail-closed: the plugin is built without exceptions, so an invalid configuration disables the
+	// cache and surfaces through GetLastError() instead of aborting the server.
 	if (this->config.host.empty() || this->config.port == 0 || this->config.database < 0 ||
 		this->config.keyPrefix.empty() || this->config.keyPrefix.size() > 512 ||
 		this->config.timeout <= std::chrono::milliseconds::zero() || this->config.maxValueBytes == 0 ||
 		this->config.maxValueBytes > 15 * 1024 * 1024)
 	{
-		throw std::invalid_argument("Redis cache configuration contains an invalid value.");
+		configValid = false;
+		SetLastError("Redis cache configuration contains an invalid value; the cache is disabled.");
 	}
 }
 
@@ -423,6 +468,14 @@ std::optional<std::string> RedisCache::Execute(const std::vector<std::string>& c
 	if (isNil)
 	{
 		*isNil = false;
+	}
+	if (!configValid)
+	{
+		if (GetLastError().empty())
+		{
+			SetLastError("Redis cache configuration contains an invalid value; the cache is disabled.");
+		}
+		return std::nullopt;
 	}
 	if (!InitializeSockets())
 	{

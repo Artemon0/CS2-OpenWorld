@@ -1,16 +1,13 @@
 #pragma once
 
 #include "adapters/persistence/player_settings_cache.h"
+#include "core/async_worker.h"
 
-#include <condition_variable>
 #include <cstddef>
 #include <cstdint>
-#include <deque>
 #include <functional>
-#include <mutex>
 #include <optional>
 #include <string>
-#include <thread>
 
 namespace ow::persistence
 {
@@ -22,6 +19,9 @@ struct PlayerSettingsLoadResult
 	std::string error;
 };
 
+// Loads player settings off the game thread. The queue is bounded by maxOutstanding; a rejected
+// configuration leaves the worker stopped and IsRunning() returns false (the plugin builds without
+// exceptions, so the constructor never throws).
 class PlayerSettingsWorker
 {
 public:
@@ -29,14 +29,15 @@ public:
 		std::function<std::optional<adapters::PlayerSettings>(std::uint64_t steamId, std::string& error)>;
 
 	explicit PlayerSettingsWorker(Loader loader, std::size_t maxOutstanding = 128);
-	~PlayerSettingsWorker();
+	~PlayerSettingsWorker() = default;
 
 	PlayerSettingsWorker(const PlayerSettingsWorker&) = delete;
 	PlayerSettingsWorker& operator=(const PlayerSettingsWorker&) = delete;
 
+	bool IsRunning() const noexcept;
 	bool Request(std::uint64_t requestId, std::uint64_t steamId);
 	std::optional<PlayerSettingsLoadResult> TryTakeResult();
-	void Stop();
+	void Stop() noexcept;
 
 private:
 	struct Job
@@ -45,16 +46,10 @@ private:
 		std::uint64_t steamId {};
 	};
 
-	void WorkerLoop();
+	using Worker = core::AsyncWorker<Job, PlayerSettingsLoadResult>;
 
-	Loader loader;
-	const std::size_t maxOutstanding;
-	std::mutex mutex;
-	std::condition_variable workAvailable;
-	std::deque<Job> jobs;
-	std::deque<PlayerSettingsLoadResult> results;
-	std::thread worker;
-	std::size_t outstanding {};
-	bool stopping {};
+	static Worker MakeWorker(Loader loader, std::size_t maxOutstanding);
+
+	Worker worker;
 };
 } // namespace ow::persistence
