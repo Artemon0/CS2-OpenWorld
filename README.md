@@ -1,6 +1,6 @@
 ﻿# CS2 Open World
 
-CS2 Open World is a Counter-Strike 2 server plugin built with C++, Metamod:Source, and hl2sdk-cs2. The plugin entry point and initial OW Core live in src/core/; gameplay and infrastructure components are organized under src/adapters/, src/modules/, src/services/, and src/ui/.
+CS2 Open World is a Counter-Strike 2 server plugin built with C++, Metamod:Source, and hl2sdk-cs2. The plugin entry point and initial OW Core live in src/core/; gameplay and infrastructure components are organized under src/adapters/, src/modules/, and src/ui/; planned modules and services are listed in [docs/ROADMAP.md](./docs/ROADMAP.md).
 
 The implementation is server-authoritative. Steam authorization must be confirmed through the engine interface before a player is considered authenticated; a non-zero SteamID alone is not sufficient.
 

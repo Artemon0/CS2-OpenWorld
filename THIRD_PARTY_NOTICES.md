@@ -55,10 +55,11 @@ license files as that permission.
   game's interfaces. It is not relicensed by this project. Review the
   applicable upstream and Valve terms for the SDK and for binaries built with
   it; this project does not package the SDK checkout.
-- **SwiftParticleMenuDemo** — the `temp_swift_menu` checkout is reference
-  material only and is not included in the server package. Its upstream MIT
-  license is retained in that checkout. Any future redistribution of its
-  contents must retain the upstream copyright and license notice.
+- **SwiftParticleMenuDemo** — reference material for the experimental particle
+  menu. The `temp_swift_menu` checkout is no longer vendored in this repository
+  (it was never part of the build or the server package); the attribution is
+  kept so the record survives. Any redistribution of its contents must retain
+  the upstream copyright and MIT license notice.
 
 The package staging step includes this file alongside the project's notice.
 It also stages the license texts listed above. When adding a dependency,

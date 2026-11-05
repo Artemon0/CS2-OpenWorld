@@ -1002,6 +1002,61 @@ bool TestPlayerRouteWorker()
 		   !worker.RequestAssign(5, steamId, "production", std::string_view("bad\0server", 10));
 }
 
+// The plugin is compiled without exceptions, so an invalid constructor argument must leave the
+// component stopped and rejecting work instead of throwing or aborting the server.
+bool TestPersistenceWorkersRejectInvalidConfiguration()
+{
+	ow::persistence::PlayerSettingsWorker settingsWorker(ow::persistence::PlayerSettingsWorker::Loader {}, 4);
+	ow::persistence::PlayerCharacterWorker characterWorker(ow::persistence::PlayerCharacterWorker::Loader {}, 0);
+	ow::persistence::PlayerRouteWorker routeWorker(ow::persistence::PlayerRouteWorker::Handler {}, 0);
+
+	if (settingsWorker.IsRunning() || characterWorker.IsRunning() || routeWorker.IsRunning())
+	{
+		return false;
+	}
+	if (settingsWorker.Request(1, 1) || characterWorker.RequestList(1, 1) ||
+		routeWorker.RequestResolve(1, 1, "production", "west", "lobby"))
+	{
+		return false;
+	}
+
+	// Stop() is idempotent and must stay safe on a worker that never started a thread.
+	settingsWorker.Stop();
+	characterWorker.Stop();
+	routeWorker.Stop();
+	settingsWorker.Stop();
+	return !settingsWorker.IsRunning() && !settingsWorker.TryTakeResult().has_value();
+}
+
+bool TestCachesRejectInvalidConfiguration()
+{
+	using namespace std::chrono_literals;
+	ow::adapters::PlayerSettingsCache settingsCache(0, 0, 0ms);
+	if (settingsCache.IsEnabled() || settingsCache.Put(1, ow::adapters::PlayerSettings {1, "{}"}) ||
+		settingsCache.Get(1).has_value() || settingsCache.Invalidate(1))
+	{
+		return false;
+	}
+#ifdef OW_ENABLE_CACHE_FALLBACK
+	ow::persistence::MemoryCache memoryCache(0, 0);
+	if (memoryCache.Put("key", "value", 1, 30s) || memoryCache.Get("key").has_value() ||
+		memoryCache.Invalidate("key"))
+	{
+		return false;
+	}
+	ow::persistence::AsyncCacheWarmer warmer(memoryCache, 0, 0);
+	if (warmer.IsEnabled())
+	{
+		return false;
+	}
+	const auto request = warmer.Request("key", 1, 30s, 0,
+										[] { return std::optional<ow::persistence::CacheLoadValue> {}; });
+	return request == ow::persistence::WarmupRequestResult::Rejected;
+#else
+	return true;
+#endif
+}
+
 bool TestRedirectEndpointValidation()
 {
 	using ow::adapters::ClientRedirector;
@@ -1114,10 +1169,21 @@ int main()
 		std::fprintf(stderr, "Player route worker tests failed.\n");
 		return 1;
 	}
+	if (!TestPersistenceWorkersRejectInvalidConfiguration())
+	{
+		std::fprintf(stderr, "Persistence worker fail-closed tests failed.\n");
+		return 1;
+	}
+	if (!TestCachesRejectInvalidConfiguration())
+	{
+		std::fprintf(stderr, "Cache fail-closed tests failed.\n");
+		return 1;
+	}
 	if (!TestRedirectEndpointValidation())
 	{
 		std::fprintf(stderr, "Redirect endpoint validation tests failed.\n");
 		return 1;
 	}
+	std::printf("core-tests: all checks passed\n");
 	return 0;
 }
