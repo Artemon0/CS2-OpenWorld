@@ -55,6 +55,11 @@ cmake -S . -B build -A x64
 cmake --build build --config Release
 ```
 
+`hl2sdk-cs2` and `metamod-source` are tracked as *shallow* submodules to keep clones small. If a
+pinned commit is no longer the tip of its branch, `git submodule update` cannot fetch it; run
+`git config --unset submodule.hl2sdk-cs2.shallow` (and the same for `metamod-source`) and retry.
+`scripts/install.sh` does this automatically.
+
 The plugin is built with **exceptions disabled** (`-fno-exceptions` / `_HAS_EXCEPTIONS=0`). New code
 must report failures through return values, `bool` flags, `std::optional`, or an `IsRunning()` /
 `IsEnabled()` accessor. Never add `throw`, `try`, or `catch` to a target that links `ow_build_flags`;

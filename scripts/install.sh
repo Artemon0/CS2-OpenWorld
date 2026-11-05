@@ -328,8 +328,12 @@ step_sdk() {
 	fi
 	if (cd "$REPO_ROOT" && git submodule update --init --recursive); then
 		ok "сабмодули готовы"
+	elif (cd "$REPO_ROOT" && git config --unset submodule.hl2sdk-cs2.shallow; git config --unset submodule.metamod-source.shallow; 		git submodule update --init --recursive); then
+		# .gitmodules marks the SDK submodules as shallow; when the pinned commit is no longer the
+		# branch tip a shallow fetch cannot resolve it, so retry with full history.
+		ok "сабмодули готовы (shallow отключён для точной сверки коммита)"
 	else
-		bad "не удалось инициализировать сабмодули"
+		bad "не удалось инициализировать сабмодули (проверь доступ к github.com)"
 	fi
 }
 

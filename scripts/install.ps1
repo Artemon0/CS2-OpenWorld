@@ -193,6 +193,13 @@ if ($sdkReady) {
     Push-Location $script:RepoRoot
     try {
         & git submodule update --init --recursive
+        if ($LASTEXITCODE -ne 0) {
+            # .gitmodules marks the SDK submodules as shallow; a pinned commit that is no longer the
+            # branch tip cannot be fetched that way, so retry with full history.
+            & git config --unset submodule.hl2sdk-cs2.shallow 2>$null
+            & git config --unset submodule.metamod-source.shallow 2>$null
+            & git submodule update --init --recursive
+        }
         if ($LASTEXITCODE -eq 0) { Ok 'сабмодули готовы' } else { Bad 'не удалось инициализировать сабмодули' }
     } finally { Pop-Location }
 }
