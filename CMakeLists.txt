@@ -152,7 +152,6 @@ file(GLOB_RECURSE OW_PLUGIN_SOURCES CONFIGURE_DEPENDS
         "${CMAKE_SOURCE_DIR}/src/features/*.c"
         "${CMAKE_SOURCE_DIR}/src/player/player.cpp"
         "${CMAKE_SOURCE_DIR}/src/player/player_manager.cpp"
-        "${CMAKE_SOURCE_DIR}/src/utils/chat.cpp"
         "${CMAKE_SOURCE_DIR}/src/utils/gameconfig.cpp"
         "${CMAKE_SOURCE_DIR}/src/utils/schema.cpp"
         "${CMAKE_SOURCE_DIR}/src/utils/utils.cpp"
@@ -254,7 +253,6 @@ if (BUILD_TESTING)
 
     add_executable(ui-tests
             tests/unit/ui_tests.cpp
-            src/utils/chat.cpp
             src/ui/ui_manager.cpp
             src/ui/hud/hud_system.cpp
             src/ui/input/input_manager.cpp

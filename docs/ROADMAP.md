@@ -29,14 +29,11 @@ made the module layout look more complete than it is. The intent is recorded her
 
 ## Text output
 
-Send text to one player through `utils/chat.h` (`src/utils/chat.cpp`) instead of calling
-`IVEngineServer2::ClientPrintf` directly: `ToPlayer` (chat), `ToConsole`, `ToCenter`,
-`ToNotification`, `ToChannel(ow::ui::UITextChannel)`. `utils/chat.h` also has the transport-neutral
-`Sanitize`; `utils/print_buffer.h` adds the optional printf-style `Format`. Every function fails
-closed (returns `false`) when the slot or engine interface is missing and rejects messages over
-`MaxMessageBytes` (512). A failed network send falls back to the engine console. The per-player
-UI policy (Panorama adapter or engine fallback) stays in `OpenWorldPlugin::SendPlayerText`; use
-that when a command reply should honour `adapters.panorama = false`.
+For a reply to one player, use `OpenWorldPlugin::SendPlayerText(slot, channel, text)` in
+`src/core/plugin.cpp`. It sends through the UI manager (respecting the configured adapter) and falls
+back to the engine console if that path is unavailable. For a broadcast chat announcement,
+`utils::CPrintChatAll(format, ...)` sends to all players. `utils::ClientPrintFilter` is the lower-level helper for custom recipient filters. The dedicated
+chat-helper API was removed because it had no callers.
 
 ## Known gaps in the current implementation
 
