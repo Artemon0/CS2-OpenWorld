@@ -1,6 +1,7 @@
 #include "adapters/cs2/client_redirector.h"
 #include "adapters/persistence/player_settings_cache.h"
 #include "adapters/persistence/postgres_adapter.h"
+#include "core/async_worker.h"
 #include "core/cluster_config.h"
 #include "core/event_bus.h"
 #include "core/module_manager.h"
@@ -27,6 +28,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <future>
+#include <limits>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -150,7 +152,63 @@ bool TestEventBus()
 	});
 	secondSubscription = bus.Subscribe<TestEvent>([&](const TestEvent&) { calls += 100; });
 	bus.Publish(TestEvent{2});
-	return calls == 2 && !bus.Unsubscribe(secondSubscription);
+	if (calls != 2 || bus.Unsubscribe(secondSubscription))
+	{
+		return false;
+	}
+
+	// A listener that re-publishes the event must be cut off instead of exhausting the stack.
+	ow::core::EventBus recursive;
+	std::size_t recursiveCalls = 0;
+	recursive.Subscribe<TestEvent>([&](const TestEvent& event) {
+		++recursiveCalls;
+		recursive.Publish(event);
+	});
+	if (!recursive.Publish(TestEvent{})) // The top-level publish itself succeeds.
+	{
+		return false;
+	}
+	if (recursiveCalls != ow::core::EventBus::MaxPublishDepth || recursive.RejectedPublishCount() != 1)
+	{
+		return false;
+	}
+
+	// Queued events are owned copies and delivered on the next dispatch only.
+	ow::core::EventBus queued;
+	std::vector<int> received;
+	queued.Subscribe<TestEvent>([&](const TestEvent& event) {
+		received.push_back(event.value);
+		if (event.value == 1)
+		{
+			queued.Enqueue(TestEvent{3});
+			queued.DispatchPendingEvents(); // Nested dispatch is a no-op.
+		}
+	});
+	TestEvent original{1};
+	if (!queued.Enqueue(original) || !queued.Enqueue(TestEvent{2}))
+	{
+		return false;
+	}
+	original.value = 99; // Does not affect the queued copy.
+	if (queued.DispatchPendingEvents() != 2 || (received != std::vector<int> {1, 2}) ||
+		queued.PendingEventCount() != 1 || queued.DispatchPendingEvents(0) != 0 ||
+		queued.DispatchPendingEvents() != 1 || received != std::vector<int> {1, 2, 3})
+	{
+		return false;
+	}
+	for (std::size_t i = 0; i < ow::core::EventBus::MaxPendingEvents; ++i)
+	{
+		if (!queued.Enqueue(TestEvent{}))
+		{
+			return false;
+		}
+	}
+	if (queued.Enqueue(TestEvent{}))
+	{
+		return false;
+	}
+	queued.Clear();
+	return queued.PendingEventCount() == 0 && queued.DispatchPendingEvents() == 0;
 }
 
 bool TestServiceRegistry()
@@ -938,6 +996,48 @@ bool TestTransferStateMachine()
 		return false;
 	}
 
+	// An idempotency-key retry must match the original request exactly.
+	std::vector<TransferRecord> replayed{transfer, transfer, transfer, transfer, transfer, transfer};
+	replayed[0].transferToken = "different-token";
+	replayed[1].snapshot.sourceServerId = "other-source";
+	replayed[2].snapshot.sourceSectorId = "other-sector";
+	replayed[3].snapshot.destinationSectorId = "other-sector";
+	replayed[4].snapshot.positionX = 1.0;
+	replayed[5].expiresAt += std::chrono::seconds(1);
+	for (const TransferRecord& changed : replayed)
+	{
+		if (manager.Request(changed, true, now))
+		{
+			return false;
+		}
+	}
+
+	// Non-finite positions cannot be persisted or restored safely.
+	TransferManager invalidManager;
+	TransferRecord invalid = MakeTransfer("invalid", "invalid", now);
+	invalid.snapshot.positionY = std::numeric_limits<double>::quiet_NaN();
+	if (invalidManager.Request(invalid, true, now))
+	{
+		return false;
+	}
+	invalid.snapshot.positionY = std::numeric_limits<double>::infinity();
+	if (invalidManager.Request(invalid, true, now))
+	{
+		return false;
+	}
+
+	// An expired, never-expired-by-sweep record must not block a new transfer.
+	TransferManager expiryManager;
+	if (!expiryManager.Request(transfer, true, now))
+	{
+		return false;
+	}
+	const auto later = now + std::chrono::minutes(2);
+	if (!expiryManager.Request(MakeTransfer("replacement", "replacement", later), true, later))
+	{
+		return false;
+	}
+
 	const std::vector<TransferState> transitions{
 		TransferState::Validating, TransferState::DestinationReserved, TransferState::StateSaved,
 		TransferState::Redirecting, TransferState::Arriving, TransferState::Completed};
@@ -1006,6 +1106,50 @@ bool TestPlayerRouteWorker()
 // component stopped and rejecting work instead of throwing or aborting the server.
 bool TestPersistenceWorkersRejectInvalidConfiguration()
 {
+	// A second concurrent Stop() must not return while the first is joining the worker thread.
+	struct AsyncWorkerJob
+	{
+		std::uint64_t requestId {};
+		std::uint64_t steamId {};
+	};
+	using AsyncWorker = ow::core::AsyncWorker<AsyncWorkerJob, AsyncWorkerJob>;
+	std::promise<void> handlerStarted;
+	std::promise<void> finishHandler;
+	const std::shared_future<void> handlerGate = finishHandler.get_future().share();
+	AsyncWorker asyncWorker(
+		[&](const AsyncWorkerJob&, AsyncWorkerJob&) {
+			handlerStarted.set_value();
+			handlerGate.wait();
+		},
+		2);
+	if (!asyncWorker.Submit(AsyncWorkerJob {1, 1}))
+	{
+		return false;
+	}
+	handlerStarted.get_future().wait();
+	auto firstStop = std::async(std::launch::async, [&] { asyncWorker.Stop(); });
+	const auto stopDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+	while (asyncWorker.IsRunning() && std::chrono::steady_clock::now() < stopDeadline)
+	{
+		std::this_thread::yield();
+	}
+	std::promise<void> secondStopStarted;
+	const auto secondStopReady = secondStopStarted.get_future();
+	auto secondStop = std::async(std::launch::async, [&] {
+		secondStopStarted.set_value();
+		asyncWorker.Stop();
+	});
+	secondStopReady.wait();
+	const bool secondStopWaited = secondStop.wait_for(std::chrono::milliseconds(50)) == std::future_status::timeout;
+	finishHandler.set_value();
+	firstStop.get();
+	secondStop.get();
+	if (!secondStopWaited || asyncWorker.IsRunning() || asyncWorker.Outstanding() != 0 ||
+		asyncWorker.TryTakeResult().has_value() || asyncWorker.Submit(AsyncWorkerJob {2, 1}))
+	{
+		return false;
+	}
+
 	ow::persistence::PlayerSettingsWorker settingsWorker(ow::persistence::PlayerSettingsWorker::Loader {}, 4);
 	ow::persistence::PlayerCharacterWorker characterWorker(ow::persistence::PlayerCharacterWorker::Loader {}, 0);
 	ow::persistence::PlayerRouteWorker routeWorker(ow::persistence::PlayerRouteWorker::Handler {}, 0);

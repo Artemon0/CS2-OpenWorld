@@ -1,5 +1,6 @@
 #include "transfer_manager.h"
 
+#include <cmath>
 #include <utility>
 
 namespace ow::transfer
@@ -11,7 +12,9 @@ bool TransferManager::Request(TransferRecord transfer, bool steamAuthenticated, 
 		transfer.snapshot.characterId.empty() || transfer.snapshot.sourceServerId.empty() ||
 		transfer.snapshot.destinationServerId.empty() ||
 		transfer.snapshot.sourceServerId == transfer.snapshot.destinationServerId ||
-		transfer.snapshot.dataRevision == 0 || transfer.expiresAt <= now)
+		transfer.snapshot.dataRevision == 0 || transfer.expiresAt <= now ||
+		!std::isfinite(transfer.snapshot.positionX) || !std::isfinite(transfer.snapshot.positionY) ||
+		!std::isfinite(transfer.snapshot.positionZ))
 	{
 		return false;
 	}
@@ -19,11 +22,11 @@ bool TransferManager::Request(TransferRecord transfer, bool steamAuthenticated, 
 	if (const auto key = idempotencyIndex.find(transfer.idempotencyKey); key != idempotencyIndex.end())
 	{
 		const auto existing = transfers.find(key->second);
+		// A retry must reproduce the original request exactly; anything else reuses the key.
 		return key->second == transfer.transferId && existing != transfers.end() &&
-			   existing->second.snapshot.steamId == transfer.snapshot.steamId &&
-			   existing->second.snapshot.characterId == transfer.snapshot.characterId &&
-			   existing->second.snapshot.destinationServerId == transfer.snapshot.destinationServerId &&
-			   existing->second.snapshot.dataRevision == transfer.snapshot.dataRevision;
+			   existing->second.snapshot == transfer.snapshot &&
+			   existing->second.transferToken == transfer.transferToken &&
+			   existing->second.expiresAt == transfer.expiresAt;
 	}
 	if (transfers.find(transfer.transferId) != transfers.end())
 	{
@@ -32,7 +35,10 @@ bool TransferManager::Request(TransferRecord transfer, bool steamAuthenticated, 
 	for (const auto& entry : transfers)
 	{
 		const TransferRecord& existing = entry.second;
-		if (existing.snapshot.steamId == transfer.snapshot.steamId && !IsTerminal(existing.state))
+		// An abandoned (expired) record must not block a fresh transfer until Expire() runs.
+		if ((existing.snapshot.steamId == transfer.snapshot.steamId ||
+			 existing.snapshot.characterId == transfer.snapshot.characterId) &&
+			!IsTerminal(existing.state) && now < existing.expiresAt)
 		{
 			return false;
 		}

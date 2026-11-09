@@ -37,13 +37,13 @@
 			}
 			"IsEntityPawn"
 			{
-				"windows"	"169"
-				"linux"		"168"
+				"windows"	"171"
+				"linux"		"170"
 			}
 			"IsEntityController"
 			{
-				"windows"	"170"
-				"linux"		"169"
+				"windows"	"172"
+				"linux"		"171"
 			}
 			// IGameServer -> m_pClients vector offset.
 			"ClientOffset"
@@ -56,6 +56,26 @@
 			{
 				"windows"	"72"
 				"linux"		"72"
+			}
+			"CollisionRulesChanged"
+			{
+				"windows"	"188"
+				"linux"		"187"
+			}
+			"EndTouch"
+			{
+				"windows"	"152"
+				"linux"		"151"
+			}
+			"StartTouch"
+			{
+				"windows"	"150"
+				"linux"		"149"
+			}
+			"Touch"
+			{
+				"windows"	"151"
+				"linux"		"150"
 			}
 		}
 	}

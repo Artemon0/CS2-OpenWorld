@@ -88,25 +88,24 @@ public:
 	}
 
 	// Idempotent and thread-safe: the first call stops the queue, waits for the in-flight job to
-	// finish and joins the thread; later calls do nothing.
+	// finish and joins the thread; later calls do nothing. The lifecycle lock stays held across
+	// the join, so a concurrent Stop() cannot return while the worker thread is still running.
 	void Stop() noexcept
 	{
+		std::lock_guard lifecycle(lifecycleMutex);
+		if (joined)
+		{
+			return;
+		}
+		joined = true;
 		std::thread ownedWorker;
 		{
-			std::lock_guard lifecycle(lifecycleMutex);
-			if (joined)
-			{
-				return;
-			}
-			joined = true;
-			{
-				std::lock_guard lock(mutex);
-				stopping = true;
-				running = false;
-				outstanding -= jobs.size();
-				jobs.clear();
-				ownedWorker = std::move(worker);
-			}
+			std::lock_guard lock(mutex);
+			stopping = true;
+			running = false;
+			outstanding -= jobs.size();
+			jobs.clear();
+			ownedWorker = std::move(worker);
 		}
 		workAvailable.notify_all();
 		if (ownedWorker.joinable())

@@ -667,7 +667,7 @@ bool OpenWorldPlugin::Unload(char* error, size_t maxlen)
 	hudSystem.ClearAll();
 	uiManager.UnregisterAdapter(panoramaAdapter);
 	panoramaAdapter.Shutdown();
-	eventBus = {};
+	eventBus.Clear();
 	serviceRegistry = {};
 	transferModule.reset();
 	inventorySystem.reset();
@@ -796,6 +796,7 @@ void OpenWorldPlugin::OnGameFrame(bool simulating)
 		return;
 	}
 
+	eventBus.DispatchPendingEvents();
 	ProcessPlayerRouteResults();
 	ProcessPlayerSettingsResults();
 	ProcessPlayerCharacterResults();
@@ -1791,6 +1792,8 @@ void OpenWorldPlugin::EnforcePlayerRoute(PlayerInfo& player)
 		player.routeStatus = PlayerServerRouteStatus::Failed;
 		META_CONPRINTF("[%s] Redirect failed for slot %d to assigned server '%s'.\n", PLUGIN_LOGTAG,
 					   player.slot, destination->id.c_str());
+		SendPlayerText(CPlayerSlot(player.slot), ow::ui::UITextChannel::Chat,
+	   "Could not connect you to your assigned server. Please reconnect and try again.");
 		return;
 	}
 	player.routeStatus = PlayerServerRouteStatus::Redirecting;

@@ -36,6 +36,9 @@ struct PlayerSnapshot
 	double positionY {};
 	double positionZ {};
 	std::uint64_t dataRevision {};
+
+	// Used to reject an idempotency-key replay that changed any part of the snapshot.
+	bool operator==(const PlayerSnapshot&) const = default;
 };
 
 struct TransferRecord

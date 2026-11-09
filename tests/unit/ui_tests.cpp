@@ -1,6 +1,8 @@
 #include "ui/hud/hud_system.h"
 #include "ui/input/input_manager.h"
 #include "ui/ui_manager.h"
+#include "utils/chat.h"
+#include "utils/print_buffer.h"
 
 #include <chrono>
 #include <string>
@@ -178,9 +180,51 @@ bool TestHUDSystem()
 	hud.RemovePlayer(CPlayerSlot(3), false);
 	return adapter.records.size() == beforeDisconnectCleanup && !hud.HideHUDElement(CPlayerSlot(3), "missing");
 }
+bool TestChatHelpers()
+{
+	// Without the engine interfaces every channel fails closed instead of touching the engine.
+	if (utils::chat::ToPlayer(CPlayerSlot(1), "hello") || utils::chat::ToConsole(CPlayerSlot(1), "hello") ||
+		utils::chat::ToCenter(CPlayerSlot(1), "hello") || utils::chat::ToNotification(CPlayerSlot(1), "hello") ||
+		utils::chat::ToChannel(CPlayerSlot(1), ow::ui::UITextChannel::Chat, "hello"))
+	{
+		return false;
+	}
+	if (utils::chat::ToChannel(CPlayerSlot(1), static_cast<ow::ui::UITextChannel>(255), "hello"))
+	{
+		return false;
+	}
+	const std::string tooLong(utils::chat::MaxMessageBytes + 1, 'x');
+	if (utils::chat::ToPlayer(CPlayerSlot(-1), "hello") || utils::chat::ToPlayer(CPlayerSlot(1), "") ||
+		utils::chat::ToPlayer(CPlayerSlot(1), tooLong) || utils::chat::ToPlayer(CPlayerSlot(1), std::string_view("a\0b", 3)))
+	{
+		return false;
+	}
+
+	std::string message = "line one\nline two\tgb\x7f";
+	if (!utils::chat::Sanitize(message) || message != "line one line two gb ")
+	{
+		return false;
+	}
+	std::string withNul("a\0b", 3);
+	if (utils::chat::Sanitize(withNul))
+	{
+		return false;
+	}
+
+	const std::string_view formatted = utils::chat::Format("%s: %d", "slot", 3);
+	if (formatted != "slot: 3")
+	{
+		return false;
+	}
+	char huge[utils::chat::MaxMessageBytes + 64];
+	std::fill(std::begin(huge), std::end(huge) - 1, 'y');
+	huge[sizeof(huge) - 1] = '\0';
+	const std::string_view truncated = utils::chat::Format("%s", huge);
+	return truncated.size() == utils::chat::MaxMessageBytes && truncated.back() == 'y';
+}
 } // namespace
 
 int main()
 {
-	return TestUIManager() && TestInputManager() && TestHUDSystem() ? 0 : 1;
+	return TestUIManager() && TestInputManager() && TestHUDSystem() && TestChatHelpers() ? 0 : 1;
 }

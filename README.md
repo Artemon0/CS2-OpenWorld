@@ -70,10 +70,15 @@ Gamedata (`gamedata/cs2-openworld.games.txt`) drives every engine offset and sig
 before shipping to a live server:
 
 ```bash
-tools/update_offsets.py --check                      # keys used by src/ must exist
-tools/update_offsets.py --check --binary libserver.so # every signature must match exactly once
-tools/update_offsets.py --fetch                       # current CS2 build from a2x/cs2-dumper
+python tools\update_offsets.py --check
+python tools\update_offsets.py --check --binary C:\cs2\game\bin\win64\server.dll
+python tools\update_offsets.py --fetch
+python tools\update_offsets.py --refresh-online
 ```
+
+`--refresh-online` reads current values directly from CS2 SDK, Source2ZE/CS2Fixes, and KZGlobalTeam/
+CS2KZ over HTTPS. It previews exact matches with their source; add `--write` to apply them. No
+separate CS2AC checkout is required.
 
 The standard build includes a small, process-local cache for player settings only (30-second TTL, up to 512 entries and 4 MiB of payload). Character state, inventory, money, and transfer data are never served from this cache; they require authoritative persistence and revision/idempotency checks. The optional generic LRU/Redis/warmup fallback sources are excluded by default; -DOW_ENABLE_CACHE_FALLBACK=ON only includes those experimental components and does not make them part of player login or transfer.
 

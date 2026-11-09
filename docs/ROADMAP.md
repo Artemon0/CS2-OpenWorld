@@ -27,6 +27,17 @@ made the module layout look more complete than it is. The intent is recorded her
 | `core/lifecycle_manager` | Explicit startup/shutdown ordering (today `ModuleManager` does it) |
 | `core/diagnostics` | Structured diagnostics dump for support tickets |
 
+## Text output
+
+Send text to one player through `utils/chat.h` (`src/utils/chat.cpp`) instead of calling
+`IVEngineServer2::ClientPrintf` directly: `ToPlayer` (chat), `ToConsole`, `ToCenter`,
+`ToNotification`, `ToChannel(ow::ui::UITextChannel)`. `utils/chat.h` also has the transport-neutral
+`Sanitize`; `utils/print_buffer.h` adds the optional printf-style `Format`. Every function fails
+closed (returns `false`) when the slot or engine interface is missing and rejects messages over
+`MaxMessageBytes` (512). A failed network send falls back to the engine console. The per-player
+UI policy (Panorama adapter or engine fallback) stays in `OpenWorldPlugin::SendPlayerText`; use
+that when a command reply should honour `adapters.panorama = false`.
+
 ## Known gaps in the current implementation
 
 - `src/core/plugin.cpp` is a single large translation unit; the chat command router, route
@@ -36,3 +47,11 @@ made the module layout look more complete than it is. The intent is recorded her
   no-op. `tools/update_offsets.py --check --strict` reports them.
 - Character, inventory, and wallet data are never cached; every read goes to PostgreSQL. That is
   correct but may need an explicit read-through cache once player counts grow.
+- Event delivery is single-threaded (game thread). `EventBus::Publish` is synchronous and rejects
+  re-entrant cycles past `MaxPublishDepth`; `Enqueue`/`DispatchPendingEvents` (drained once per
+  `OnGameFrame`) deliver owned copies for self-publishing listeners. A listener that unbinds itself
+  from inside its own callback skips the remaining listeners of the same publish on purpose; a
+  listener must not unbind another one mid-publish. Cross-thread publishing is unsupported.
+- `TransferManager` is purely in-process with no locks; call it from the game thread only. It is the
+  validation state machine, not the cross-server coordinator: reservation, tokens, ownership
+  fencing, and the destination arrival handshake are still open (ADR-025).

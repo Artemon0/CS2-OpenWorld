@@ -152,6 +152,7 @@ file(GLOB_RECURSE OW_PLUGIN_SOURCES CONFIGURE_DEPENDS
         "${CMAKE_SOURCE_DIR}/src/features/*.c"
         "${CMAKE_SOURCE_DIR}/src/player/player.cpp"
         "${CMAKE_SOURCE_DIR}/src/player/player_manager.cpp"
+        "${CMAKE_SOURCE_DIR}/src/utils/chat.cpp"
         "${CMAKE_SOURCE_DIR}/src/utils/gameconfig.cpp"
         "${CMAKE_SOURCE_DIR}/src/utils/schema.cpp"
         "${CMAKE_SOURCE_DIR}/src/utils/utils.cpp"
@@ -253,6 +254,7 @@ if (BUILD_TESTING)
 
     add_executable(ui-tests
             tests/unit/ui_tests.cpp
+            src/utils/chat.cpp
             src/ui/ui_manager.cpp
             src/ui/hud/hud_system.cpp
             src/ui/input/input_manager.cpp
@@ -262,9 +264,20 @@ if (BUILD_TESTING)
     ow_link_test_runtime(ui-tests)
     target_include_directories(ui-tests PRIVATE
             "${CMAKE_SOURCE_DIR}/src"
+            "${CMAKE_SOURCE_DIR}/src/player"
+            "${OW_SDK_ROOT}"
+            ${OW_SDK_INCLUDE_DIRS}
+            "${OW_SDK_ROOT}/public/engine"
             "${OW_SDK_ROOT}/public"
             "${OW_SDK_ROOT}/public/tier0"
+            "${OW_SDK_ROOT}/public/tier1"
+            "${OW_SDK_ROOT}/public/entity2"
+            "${OW_SDK_ROOT}/game/server"
+            "${OW_MMS_ROOT}/core"
+            "${OW_MMS_ROOT}/third_party/khook/include"
+            "${OW_PROTOBUF_GEN_DIR}"
     )
+    add_dependencies(ui-tests ow-protobuf-gen)
     add_test(NAME ui-tests COMMAND ui-tests)
     set_tests_properties(ui-tests PROPERTIES LABELS "unit")
 
