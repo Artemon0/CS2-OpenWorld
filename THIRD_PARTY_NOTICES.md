@@ -1,18 +1,20 @@
 # Third-party notices
 
-Original CS2 Open World contributions are subject to the proprietary notice in
-the repository root, not an open-source license. That notice cannot relicense
-third-party material or establish that a commercial CS2 modification is
-permitted. This inventory covers the components identified in the current
-build configuration; it is not a complete legal or supply-chain audit.
+Original CS2 Open World contributions are licensed under the GNU Affero General
+Public License, version 3 only (AGPL-3.0-only); see the repository root
+[`LICENSE`](./LICENSE). This license does not relicense third-party material.
+This inventory covers the components identified in the current build
+configuration; it is not a complete legal or supply-chain audit.
 
-The proprietary notice is intended to reserve rights in the rights holder's
-original expression. It does not claim ownership of ideas, methods, protocols,
-or independently created implementations. A prior repository revision used
-MIT text; replacing it does not retroactively revoke rights already granted
-for copies distributed under that license.
+This notice describes the current tree. It does not retroactively revoke
+permissions granted for earlier published versions under a different license;
+check the applicable version and its license when evaluating an older copy.
 
 ## Commercial distribution warning
+
+AGPL does not itself prohibit commercial use or charging for copies. It also
+does not grant permission to distribute a CS2 modification in violation of
+Valve's separate terms.
 
 Valve's official [Source Engine mod distribution guidance](https://partner.steamgames.com/doc/sdk/uploading/distributing_source_engine)
 states that mods are expected by default to be non-commercial, defines paid
@@ -61,8 +63,8 @@ license files as that permission.
   kept so the record survives. Any redistribution of its contents must retain
   the upstream copyright and MIT license notice.
 
-The package staging step includes this file alongside the project's notice.
+The package staging step includes this file and the project's AGPL license.
 It also stages the license texts listed above. When adding a dependency,
 review its license before adoption and update this inventory and the packaged
-notices. Have counsel review the repository and distribution history before
-relying on exclusivity.
+notices. The project's license cannot override upstream terms or the
+distribution rules of the game.

@@ -7,6 +7,7 @@
 #include <mutex>
 #include <optional>
 #include <unordered_map>
+#include <string_view>
 #include <string>
 
 namespace ow::adapters
@@ -20,7 +21,7 @@ struct PlayerSettings
 class PlayerSettingsCache
 {
 public:
-	explicit PlayerSettingsCache(std::size_t maxEntries = 512, std::size_t maxBytes = 4 * 1024 * 1024,
+	explicit PlayerSettingsCache(std::size_t maxEntries = 512ULL, std::size_t maxBytes = 4ULL * 1024ULL * 1024ULL,
 								 std::chrono::milliseconds ttl = std::chrono::seconds(30));
 
 	std::optional<PlayerSettings> Get(std::uint64_t steamId);

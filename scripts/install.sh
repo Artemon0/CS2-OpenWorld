@@ -4,9 +4,9 @@
 # The script never installs anything silently: it detects what is already available, asks
 # before every change, and asks for a path when a tool exists but is not on PATH.
 #
-#   scripts/install.sh              # интерактивная установка
-#   scripts/install.sh --check      # только отчёт, ничего не меняет
-#   scripts/install.sh --yes        # без подтверждений (для CI/автоматизации)
+#   scripts/install.sh              # interactive installation
+#   scripts/install.sh --check      # report only; make no changes
+#   scripts/install.sh --yes        # skip confirmations (for CI/automation)
 #
 # Windows: scripts/install.ps1
 
@@ -41,7 +41,7 @@ for argument in "$@"; do
 			exit 0
 			;;
 		*)
-			echo "Неизвестный аргумент: $argument (см. --help)" >&2
+			echo "Unknown argument: $argument (see --help)" >&2
 			exit 2
 			;;
 	esac
@@ -57,10 +57,10 @@ say() { printf '%s\n' "$*"; }
 step() { printf '\n%s==> %s%s\n' "$BOLD" "$*" "$RESET"; }
 ok() { printf '  %s[ok]%s %s\n' "$GREEN" "$RESET" "$*"; }
 warn() { printf '  %s[!]%s %s\n' "$YELLOW" "$RESET" "$*"; NOTES+=("$*"); }
-bad() { printf '  %s[нет]%s %s\n' "$RED" "$RESET" "$*"; MISSING+=("$*"); }
+bad() { printf '  %s[missing]%s %s\n' "$RED" "$RESET" "$*"; MISSING+=("$*"); }
 
 ask() {
-	# ask "вопрос" [default-y|default-n] -> returns 0 for yes
+	# ask "question" [default-y|default-n] -> returns 0 for yes
 	local question=$1 default=${2:-default-n} answer
 	if [ "$ASSUME_YES" -eq 1 ] || [ ! -t 0 ]; then
 		[ "$default" = "default-y" ] && return 0
@@ -80,7 +80,7 @@ ask() {
 }
 
 ask_value() {
-	# ask_value "вопрос" "значение по умолчанию"
+	# ask_value "question" "default value"
 	local question=$1 default=${2:-} answer
 	if [ "$ASSUME_YES" -eq 1 ] || [ ! -t 0 ]; then
 		printf '%s' "$default"
@@ -114,12 +114,12 @@ resolve_tool() {
 		return 1
 	fi
 
-	warn "${label} (${command_name}) не найден в PATH" >&2
-	if ! ask "У тебя уже установлен ${label} в другом месте?" default-n; then
+	warn "${label} (${command_name}) was not found in PATH" >&2
+	if ! ask "Is ${label} installed in another location?" default-n; then
 		return 1
 	fi
 	local provided
-	provided=$(ask_value "Укажи полный путь к ${command_name}" "")
+	provided=$(ask_value "Enter the full path to ${command_name}" "")
 	if [ -z "$provided" ]; then
 		return 1
 	fi
@@ -127,7 +127,7 @@ resolve_tool() {
 		provided="${provided%/}/${command_name}"
 	fi
 	if [ ! -x "$provided" ]; then
-		bad "${provided} не исполняемый файл" >&2
+		bad "${provided} is not an executable file" >&2
 		return 1
 	fi
 	ok "${label}: ${provided}" >&2
@@ -147,14 +147,14 @@ detect_pm() {
 pm_pick() {
 	# pm_pick "apt-get:libpq5" "dnf:libpq" ... -> installs with the matching package manager
 	local pm entry
-	pm=$(detect_pm) || { warn "пакетный менеджер не найден; установи вручную: $*"; return 1; }
+	pm=$(detect_pm) || { warn "No package manager found; install manually: $*"; return 1; }
 	for entry in "$@"; do
 		if [ "${entry%%:*}" = "$pm" ]; then
 			pm_install "${entry#*:}"
 			return $?
 		fi
 	done
-	warn "не знаю имя пакета для ${pm}: $*"
+	warn "Unknown package name for ${pm}: $*"
 	return 1
 }
 
@@ -162,7 +162,7 @@ pm_install() {
 	# pm_install <package...>
 	local pm
 	if ! pm=$(detect_pm); then
-		warn "не найден пакетный менеджер; установи вручную: $*"
+		warn "No package manager found; install manually: $*"
 		return 1
 	fi
 	local -a command
@@ -176,18 +176,18 @@ pm_install() {
 		esac
 
 	if [ "$ALLOW_INSTALL" -eq 0 ] || [ "$CHECK_ONLY" -eq 1 ]; then
-		warn "нужно установить: ${command[*]} (запусти вручную)"
+		warn "Install: ${command[*]} (run manually)"
 		return 1
 	fi
 	if [ "$ASSUME_YES" -eq 0 ] && [ -t 0 ]; then
-		ask "Выполнить: sudo ${command[*]} ?" default-y || return 1
+		ask "Run: sudo ${command[*]} ?" default-y || return 1
 	fi
 
 	if [ "$pm" != "brew" ] && [ "$(id -u)" -ne 0 ]; then
 		if has_cmd sudo; then
 			sudo "${command[@]}"
 		else
-			warn "нет sudo и нет прав root; установи вручную: ${command[*]}"
+			warn "sudo is unavailable and you are not root; install manually: ${command[*]}"
 			return 1
 		fi
 	else
@@ -207,15 +207,15 @@ write_env_file() {
 	# Creates .env from .env.example with freshly generated passwords (never overwrites).
 	local env_path="${REPO_ROOT}/.env"
 	if [ -f "$env_path" ]; then
-		ok ".env уже существует — не трогаю"
+		ok ".env already exists; leaving it unchanged"
 		return 0
 	fi
 	if [ ! -f "${REPO_ROOT}/.env.example" ]; then
-		warn ".env.example не найден; .env не создан"
+		warn ".env.example was not found; .env was not created"
 		return 1
 	fi
 	if [ "$CHECK_ONLY" -eq 1 ]; then
-		warn ".env будет создан из .env.example (passwords генерируются)"
+		warn ".env will be created from .env.example (passwords will be generated)"
 		return 0
 	fi
 
@@ -229,7 +229,7 @@ write_env_file() {
 		-e "s|^OW_REDIS_PASSWORD=.*|OW_REDIS_PASSWORD=${redis}|" \
 		"${REPO_ROOT}/.env.example" > "$env_path"
 	chmod 600 "$env_path"
-	ok ".env создан со сгенерированными паролями (chmod 600)"
+	ok ".env created with generated passwords (chmod 600)"
 }
 
 detect_pg_lib() {
@@ -249,12 +249,12 @@ env_value() {
 }
 
 step_toolchain() {
-	step "1/6 Компилятор и сборка"
+	step "1/6 Compiler and build tools"
 
 	if ! resolve_tool git Git >/dev/null; then
 		if ! has_cmd git; then
-			bad "git не найден (нужен для сабмодулей SDK)"
-			ask "Установить git?" default-y && pm_install git
+			bad "git was not found (required for SDK submodules)"
+			ask "Install git?" default-y && pm_install git
 		fi
 	else
 		ok "git $(version_of git)"
@@ -266,14 +266,14 @@ step_toolchain() {
 		local clang_version
 		clang_version=$(version_of "$clang_bin")
 		if [ -z "$clang_version" ]; then
-			bad "clang++ найден, но не запускается (${clang_bin}); проверь PATH и LD_LIBRARY_PATH"
+			bad "clang++ was found but cannot run (${clang_bin}); check PATH and LD_LIBRARY_PATH"
 		else
 			ok "clang++ ${clang_version} -> ${clang_bin}"
 			CLANGXX="$clang_bin"
 		fi
 	else
-		bad "clang++ не найден — CMakeLists требует Clang для Linux-сборки"
-		if ask "Установить clang?" default-y; then
+		bad "clang++ was not found; CMakeLists requires Clang for Linux builds"
+		if ask "Install clang?" default-y; then
 			pm_install clang
 			has_cmd clang++ && CLANGXX=$(command -v clang++)
 		fi
@@ -284,17 +284,17 @@ step_toolchain() {
 		local cmake_version
 		cmake_version=$(version_of "$cmake_bin")
 		if [ -z "$cmake_version" ]; then
-			bad "cmake найден, но не запускается (${cmake_bin})"
+			bad "cmake was found but cannot run (${cmake_bin})"
 		elif version_ge "3.19" "$cmake_version"; then
 			ok "cmake ${cmake_version} -> ${cmake_bin}"
 			CMAKE="$cmake_bin"
 		else
 			bad "cmake ${cmake_version} < 3.19"
-			ask "Обновить cmake?" default-y && pm_install cmake
+			ask "Update cmake?" default-y && pm_install cmake
 		fi
 	else
-		bad "cmake не найден"
-		if ask "Установить cmake?" default-y; then
+		bad "cmake was not found"
+		if ask "Install cmake?" default-y; then
 			pm_install cmake
 			has_cmd cmake && CMAKE=$(command -v cmake)
 		fi
@@ -305,8 +305,8 @@ step_toolchain() {
 		ok "ninja $(version_of "$ninja_bin") -> ${ninja_bin}"
 		NINJA="$ninja_bin"
 	else
-		warn "ninja не найден; сборка пойдёт через Unix Makefiles (медленнее)"
-		if ask "Установить ninja?" default-y; then
+		warn "ninja was not found; the build will use Unix Makefiles (slower)"
+		if ask "Install ninja?" default-y; then
 			pm_pick "apt-get:ninja-build" "dnf:ninja-build" "pacman:ninja" "zypper:ninja" "apk:ninja" "brew:ninja"
 			has_cmd ninja && NINJA=$(command -v ninja)
 		fi
@@ -314,43 +314,43 @@ step_toolchain() {
 }
 
 step_sdk() {
-	step "2/6 SDK: hl2sdk-cs2 и metamod-source"
+	step "2/6 SDK: hl2sdk-cs2 and metamod-source"
 	if [ -d "${REPO_ROOT}/hl2sdk-cs2/game/server" ] && [ -d "${REPO_ROOT}/metamod-source/core" ]; then
-		ok "сабмодули уже на месте"
+		ok "Submodules are already available"
 		return 0
 	fi
 	if [ "$CHECK_ONLY" -eq 1 ]; then
-		warn "сабмодули не инициализированы (git submodule update --init --recursive)"
+		warn "Submodules are not initialized (git submodule update --init --recursive)"
 		return 0
 	fi
-	if ! ask "Инициализировать сабмодули SDK (git submodule update --init --recursive)?" default-y; then
+	if ! ask "Initialize SDK submodules (git submodule update --init --recursive)?" default-y; then
 		return 0
 	fi
 	if (cd "$REPO_ROOT" && git submodule update --init --recursive); then
-		ok "сабмодули готовы"
+		ok "Submodules are ready"
 	elif (cd "$REPO_ROOT" && git config --unset submodule.hl2sdk-cs2.shallow; git config --unset submodule.metamod-source.shallow; 		git submodule update --init --recursive); then
 		# .gitmodules marks the SDK submodules as shallow; when the pinned commit is no longer the
 		# branch tip a shallow fetch cannot resolve it, so retry with full history.
-		ok "сабмодули готовы (shallow отключён для точной сверки коммита)"
+		ok "Submodules are ready (shallow mode disabled to fetch the pinned commit)"
 	else
-		bad "не удалось инициализировать сабмодули (проверь доступ к github.com)"
+		bad "Failed to initialize submodules (check access to github.com)"
 	fi
 }
 
 step_postgres() {
-	step "4/6 PostgreSQL (адаптер плагина подключается через libpq)"
+	step "4/6 PostgreSQL (the plugin adapter connects through libpq)"
 	if [ "$SKIP_POSTGRES" -eq 1 ]; then
-		warn "пропущено по --skip-postgres"
+		warn "Skipped by --skip-postgres"
 		return 0
 	fi
 
 	if detect_pg_lib; then
-		ok "libpq найдена (нужна плагину для подключения)"
+		ok "libpq was found (required by the plugin to connect)"
 	else
-		bad "libpq не найдена — плагин не сможет подключиться к PostgreSQL"
-		if ask "Установить клиентскую библиотеку libpq?" default-y; then
+		bad "libpq was not found; the plugin cannot connect to PostgreSQL"
+		if ask "Install the libpq client library?" default-y; then
 			pm_pick "apt-get:libpq5" "dnf:libpq" "pacman:postgresql-libs" "zypper:postgresql-devel" "apk:postgresql-client" "brew:libpq"
-			detect_pg_lib && ok "libpq установлена"
+			detect_pg_lib && ok "libpq installed"
 		fi
 	fi
 
@@ -359,22 +359,22 @@ step_postgres() {
 
 	if [ -n "$psql_bin" ]; then
 		ok "psql $(version_of "$psql_bin") -> ${psql_bin}"
-	elif ask "У тебя есть PostgreSQL?" default-n; then
+	elif ask "Do you have PostgreSQL installed?" default-n; then
 		local provided
-		provided=$(ask_value "Путь к каталогу bin PostgreSQL (например /usr/lib/postgresql/17/bin)" "")
+		provided=$(ask_value "Path to the PostgreSQL bin directory (for example /usr/lib/postgresql/17/bin)" "")
 		if [ -n "$provided" ] && [ -x "${provided%/}/psql" ]; then
 			psql_bin="${provided%/}/psql"
 			ok "psql -> ${psql_bin}"
 		else
-			bad "psql не найден по указанному пути"
+			bad "psql was not found at the specified path"
 		fi
 	else
-		warn "PostgreSQL не найден"
-		if ask "Установить сервер PostgreSQL?" default-n; then
+		warn "PostgreSQL was not found"
+		if ask "Install the PostgreSQL server?" default-n; then
 			if has_cmd docker; then
-				if ask "Использовать docker compose (compose.yaml) вместо системного пакета?" default-y; then
+				if ask "Use docker compose (compose.yaml) instead of a system package?" default-y; then
 					step_env
-					(cd "$REPO_ROOT" && docker compose up -d postgres) && ok "PostgreSQL запущен в docker"
+					(cd "$REPO_ROOT" && docker compose up -d postgres) && ok "PostgreSQL started in Docker"
 				else
 					pm_install postgresql
 				fi
@@ -386,19 +386,19 @@ step_postgres() {
 	fi
 
 	[ -z "$psql_bin" ] && return 0
-	if ! ask "Создать роли, базу openworld и накатить миграции сейчас?" default-n; then
-		NOTES+=("База не инициализирована. Вручную: database/bootstrap/001..003.sql и database/migrations/*.sql")
+	if ! ask "Create the roles and openworld database, then apply migrations now?" default-n; then
+		NOTES+=("Database not initialized. Run database/bootstrap/001..003.sql and database/migrations/*.sql manually")
 		return 0
 	fi
 
 	local admin_user admin_db host port
-	admin_user=$(ask_value "Администратор PostgreSQL" "postgres")
-	admin_db=$(ask_value "Служебная база для подключения" "postgres")
-	host=$(ask_value "Хост PostgreSQL" "127.0.0.1")
-	port=$(ask_value "Порт PostgreSQL" "5432")
+	admin_user=$(ask_value "PostgreSQL administrator" "postgres")
+	admin_db=$(ask_value "Maintenance database" "postgres")
+	host=$(ask_value "PostgreSQL host" "127.0.0.1")
+	port=$(ask_value "PostgreSQL port" "5432")
 
 	local admin_password
-	admin_password=$(ask_value "Пароль администратора (пусто — через peer/trust)" "")
+	admin_password=$(ask_value "Administrator password (empty to use peer/trust)" "")
 	local -a psql_admin=( "$psql_bin" -h "$host" -p "$port" -U "$admin_user" -d "$admin_db" -v ON_ERROR_STOP=1 -q )
 	run_admin() {
 		if [ -n "$admin_password" ]; then
@@ -409,12 +409,12 @@ step_postgres() {
 	}
 
 	if ! run_admin -c 'SELECT 1' >/dev/null 2>&1; then
-		bad "не удалось подключиться к PostgreSQL как ${admin_user}"
+		bad "Could not connect to PostgreSQL as ${admin_user}"
 		return 1
 	fi
 
-	run_admin -f "${REPO_ROOT}/database/bootstrap/001_create_roles_and_database.sql" || warn "001_create_roles_and_database.sql: см. вывод выше (роли могли уже существовать)"
-	run_admin -f "${REPO_ROOT}/database/bootstrap/002_create_database.sql" || warn "002_create_database.sql: база могла уже существовать"
+	run_admin -f "${REPO_ROOT}/database/bootstrap/001_create_roles_and_database.sql" || warn "001_create_roles_and_database.sql: see output above (roles may already exist)"
+	run_admin -f "${REPO_ROOT}/database/bootstrap/002_create_database.sql" || warn "002_create_database.sql: the database may already exist"
 
 	local migrator_password app_password
 	migrator_password=$(env_value OW_PG_MIGRATOR_PASSWORD)
@@ -422,9 +422,9 @@ step_postgres() {
 	if [ -n "$migrator_password" ] && [ -n "$app_password" ]; then
 		run_admin -c "ALTER ROLE ow_migrator PASSWORD '${migrator_password}'"
 		run_admin -c "ALTER ROLE ow_app PASSWORD '${app_password}'"
-		ok "пароли ролей установлены из .env"
+		ok "Role passwords set from .env"
 	else
-		warn "пароли ролей не заданы: сначала создай .env (шаг 5)"
+		warn "Role passwords are not set; create .env first (step 5)"
 	fi
 
 	local migration
@@ -432,78 +432,78 @@ step_postgres() {
 		if PGPASSWORD="$migrator_password" "$psql_bin" -h "$host" -p "$port" -U ow_migrator -d openworld -v ON_ERROR_STOP=1 -q -f "$migration"; then
 			ok "migration $(basename "$migration")"
 		else
-			bad "migration $(basename "$migration") не применилась"
+			bad "Migration $(basename "$migration") failed"
 			return 1
 		fi
 	done
 
 	PGPASSWORD="$migrator_password" "$psql_bin" -h "$host" -p "$port" -U ow_migrator -d openworld -v ON_ERROR_STOP=1 -q \
-		-f "${REPO_ROOT}/database/bootstrap/003_app_permissions.sql" && ok "права ow_app выданы"
+		-f "${REPO_ROOT}/database/bootstrap/003_app_permissions.sql" && ok "Permissions granted to ow_app"
 }
 
 step_redis() {
-	step "5/6 Redis (только для сборки с OW_ENABLE_CACHE_FALLBACK=ON)"
+	step "5/6 Redis (only for builds with OW_ENABLE_CACHE_FALLBACK=ON)"
 	if [ "$SKIP_REDIS" -eq 1 ]; then
-		warn "пропущено по --skip-redis"
+		warn "Skipped by --skip-redis"
 		return 0
 	fi
 
 	if has_cmd redis-server || has_cmd redis-cli; then
-		ok "redis уже установлен"
+		ok "Redis is already installed"
 		if ! has_cmd redis-cli || ! redis-cli ping >/dev/null 2>&1; then
-			warn "redis не отвечает на ping (сервис не запущен?)"
+			warn "Redis does not respond to ping (is the service running?)"
 		fi
 		return 0
 	fi
 
 	if [ "$CHECK_ONLY" -eq 1 ]; then
-		warn "redis не установлен (нужен только для cache fallback)"
+		warn "Redis is not installed (only required for the cache fallback)"
 		return 0
 	fi
-	if ! ask "Redis не найден. Установить его? (нужен только для экспериментального cache fallback)" default-n; then
-		ok "Redis не требуется для основной сборки"
+	if ! ask "Redis was not found. Install it? (only needed for the experimental cache fallback)" default-n; then
+		ok "Redis is not required for the standard build"
 		return 0
 	fi
 
 	if has_cmd docker; then
-		if ask "Запустить Redis через docker compose (compose.yaml)?" default-y; then
+		if ask "Start Redis with docker compose (compose.yaml)?" default-y; then
 			step_env
-			(cd "$REPO_ROOT" && docker compose up -d redis) && ok "Redis запущен в docker"
+			(cd "$REPO_ROOT" && docker compose up -d redis) && ok "Redis started in Docker"
 			return 0
 		fi
 	fi
 
 	pm_pick "apt-get:redis-server" "dnf:redis" "pacman:redis" "zypper:redis" "apk:redis" "brew:redis"
 	if has_cmd redis-server; then
-		ok "redis установлен; включи requirepass вручную: /etc/redis/redis.conf -> requirepass <OW_REDIS_PASSWORD>"
-		NOTES+=("Redis: задай requirepass (значение OW_REDIS_PASSWORD в .env) и перезапусти сервис")
+		ok "Redis installed; set requirepass manually: /etc/redis/redis.conf -> requirepass <OW_REDIS_PASSWORD>"
+		NOTES+=("Redis: set requirepass (the OW_REDIS_PASSWORD value in .env) and restart the service")
 	fi
 }
 
 step_env() {
-	step "3/6 Переменные окружения (.env)"
+	step "3/6 Environment variables (.env)"
 	if [ -f "${REPO_ROOT}/.env" ]; then
-		ok ".env уже существует"
+		ok ".env already exists"
 		return 0
 	fi
 	write_env_file || true
 }
 
 step_build() {
-	step "6/6 Сборка и тесты"
+	step "6/6 Build and tests"
 	if [ "$SKIP_BUILD" -eq 1 ]; then
-		warn "пропущено по --skip-build"
+		warn "Skipped by --skip-build"
 		return 0
 	fi
 	if [ -z "${CMAKE:-}" ] || [ -z "${CLANGXX:-}" ]; then
-		bad "сборка невозможна: не найден cmake или clang++"
+		bad "Cannot build: cmake or clang++ was not found"
 		return 1
 	fi
 	if [ "$CHECK_ONLY" -eq 1 ]; then
-		warn "сборка не запускалась (--check)"
+		warn "Build not run (--check)"
 		return 0
 	fi
-	if ! ask "Собрать плагин и прогнать тесты сейчас?" default-y; then
+	if ! ask "Build the plugin and run tests now?" default-y; then
 		return 0
 	fi
 
@@ -517,33 +517,33 @@ step_build() {
 		-DCMAKE_BUILD_TYPE=Release \
 		-DCMAKE_C_COMPILER="${CLANGXX%++}" \
 		-DCMAKE_CXX_COMPILER="$CLANGXX"; then
-		bad "конфигурация CMake не удалась"
+		bad "CMake configuration failed"
 		return 1
 	fi
 	if ! "$CMAKE" --build "${REPO_ROOT}/${BUILD_DIR}" -j "$jobs"; then
-		bad "сборка не удалась"
+		bad "Build failed"
 		return 1
 	fi
-	ok "плагин собран: ${BUILD_DIR}/package"
+	ok "Plugin built: ${BUILD_DIR}/package"
 
 	local ctest_bin
 	ctest_bin="$(dirname -- "$CMAKE")/ctest"
 	[ -x "$ctest_bin" ] || ctest_bin=$(command -v ctest || true)
 	if [ -n "$ctest_bin" ]; then
 		if "$ctest_bin" --test-dir "${REPO_ROOT}/${BUILD_DIR}" --output-on-failure; then
-			ok "тесты прошли"
+			ok "Tests passed"
 		else
-			bad "тесты упали"
+			bad "Tests failed"
 		fi
 	else
-		warn "ctest не найден; тесты не запускались"
+		warn "ctest was not found; tests were not run"
 	fi
 }
 
 summary() {
-	step "Итог"
+	step "Summary"
 	if [ ${#MISSING[@]} -eq 0 ]; then
-		ok "обязательные зависимости на месте"
+		ok "All required dependencies are available"
 	else
 		local item
 		for item in "${MISSING[@]}"; do bad "$item"; done
@@ -553,10 +553,10 @@ summary() {
 		while IFS= read -r note; do warn "$note"; done < <(printf '%s\n' "${NOTES[@]}" | awk '!seen[$0]++')
 	fi
 	say ""
-	say "Дальше:"
-	say "  * package/ -> addons/cs2-openworld на сервере (см. PACKAGE_INSTALL.txt)"
-	say "  * gamedata: tools/update_offsets.py --check --binary <libserver.so>"
-	say "  * конфиг: configs/openworld.ini.example -> addons/cs2-openworld/configs/openworld.ini"
+	say "Next steps:"
+	say "  * Copy package/ -> addons/cs2-openworld on the server (see PACKAGE_INSTALL.txt)"
+	say "  * Check gamedata: tools/update_offsets.py --check --binary <libserver.so>"
+	say "  * Config: configs/openworld.ini.example -> addons/cs2-openworld/configs/openworld.ini"
 	if [ ${#MISSING[@]} -gt 0 ]; then
 		return 1
 	fi
@@ -564,16 +564,16 @@ summary() {
 }
 
 main() {
-	say "${BOLD}CS2 Open World — установка зависимостей${RESET}"
-	say "Репозиторий: ${REPO_ROOT}"
+	say "${BOLD}CS2 Open World - dependency installer${RESET}"
+	say "Repository: ${REPO_ROOT}"
 	if [ "$CHECK_ONLY" -eq 1 ]; then
-		say "Режим: только проверка (ничего не меняется)"
+		say "Mode: check only (no changes will be made)"
 	fi
 
 	local arch
 	arch=$(uname -m)
 	if [ "$arch" != "x86_64" ] && [ "$arch" != "amd64" ]; then
-		bad "архитектура ${arch}: плагин собирается только под x86_64"
+		bad "Unsupported architecture ${arch}: the plugin can only be built for x86_64"
 	fi
 
 	CLANGXX=""; CMAKE=""; NINJA=""

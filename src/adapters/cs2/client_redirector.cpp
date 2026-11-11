@@ -17,7 +17,7 @@ bool IsPort(std::string_view text)
 	unsigned int port = 0;
 	for (const char digit : text)
 	{
-		if (digit < '0' || digit > '9')
+		if (digit < '0' || digit > '9' || !std::isdigit(digit))
 		{
 			return false;
 		}

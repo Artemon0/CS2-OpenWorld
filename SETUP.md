@@ -1,135 +1,233 @@
-# Настройка CS2 Open World
+# CS2 Open World setup
 
-Руководство для Windows: PostgreSQL, настройка плагина, кеш настроек и базовая подготовка карты. SQL ниже рассчитан на pgAdmin Query Tool. Пароли не записывайте в конфиг плагина и не добавляйте в Git.
+This guide covers Windows deployment, PostgreSQL, plugin configuration, the
+settings cache, and basic map preparation. The SQL steps are written for
+pgAdmin Query Tool. Never put passwords in the plugin INI file or commit them
+to Git.
 
-## 1. Что сейчас работает
+## 1. Current functionality
 
-- Плагин читает `addons/cs2-openworld/configs/openworld.ini` относительно каталога CS2 game (`game/csgo`); относительный `OW_CONFIG_PATH` разрешается оттуда же, абсолютный путь используется как есть.
-- Конфигурация проверяет идентификатор сервера, настройки кэша, endpoints серверов и прямоугольные XY-зоны карты.
-- В cluster-режиме включена закреплённая маршрутизация игрока: после подтверждения SteamID сервер асинхронно читает назначенный сервер из PostgreSQL. Новая запись назначается на `[routing].lobby_server_id`; при входе на другой сервер из этого же кластера клиент получает redirect на назначенный адрес. `!go <server_id>` сначала записывает новое назначение в БД и только после подтверждения отправляет redirect.
-- Адаптер PostgreSQL использует ограниченный локальный кеш настроек игрока: до 512 записей, до 4 MiB JSON-данных, срок жизни 30 секунд. При успешном сохранении кеш обновляется; неуспешная запись инвалидирует запись. Персонаж, инвентарь, деньги и transfer state кеш не используют.
-- Общие Redis/LRU/warmup компоненты сохранены отдельно как экспериментальный fallback и по умолчанию исключены из DLL. Они не подключены к player lifecycle и не нужны для работы обычного кеша настроек.
-- PostgreSQL adapter динамически загружает официальную libpq, проверяет соединение при загрузке плагина и имеет параметризованные операции создания/загрузки персонажа, сохранения состояния/настроек и идемпотентной транзакции денег. Инвентарь загружается и сохраняется через versioned compare-and-swap API: stale revision отклоняется в БД, чтобы не затереть параллельное изменение. После полной Steam-аутентификации и подключения игрока настройки читаются через однопоточную очередь на фоне; результат применяется только на игровом потоке и только если SteamID и запрос всё ещё совпадают с текущей сессией в слоте. Загрузка настроек не задерживает появление в игре; отсутствующая строка считается стандартными настройками `{}`.
-- Серверный текстовый HUD можно включать в чате командой `!hud` (или `!hud on`/`!hud off`); он показывает сервер, состояние Steam-сессии и статус загрузки настроек. Это многострочный текст в центре экрана, не графическая Panorama-панель.
-- `InventorySystem` зарегистрирован как версионированный `IInventoryService`; адаптер загружает JSON-инвентарь и сохраняет его с compare-and-swap ревизией. `EconomySystem` зарегистрирован как `IEconomyService` и предоставляет чтение кошелька и идемпотентные транзакции. После Steam-auth список персонажей загружается в фоне: единственный персонаж выбирается автоматически, при нескольких можно выбрать через `!character list` и `!character select <id>`, при отсутствии создать через `!character create <name>`. `!inventory` выводит JSON-снимок в консоль игрока, `!balance` показывает кошелёк. Изменение предметов командами, pickup/crafting и другие игровые источники инвентаря пока не реализованы. DB-вызовы сервисов синхронные, поэтому текущий загрузчик вызывает их в рабочем потоке.
+- The plugin reads `addons/cs2-openworld/configs/openworld.ini` relative to
+  the CS2 game directory (`game/csgo`). Relative `OW_CONFIG_PATH` values use
+  that directory too; absolute paths are used as supplied.
+- Configuration validates the server ID, cache settings, server endpoints,
+  and rectangular XY map zones.
+- In cluster mode, server affinity is stored in PostgreSQL. After Steam
+  authentication, the server asynchronously looks up the player's assigned
+  server. New players are assigned to `[routing].lobby_server_id`. `!go
+  <server_id>` stores the new assignment before redirecting the client.
+- PostgreSQL uses a bounded, process-local player-settings cache: at most 512
+  entries, 4 MiB of JSON payload, and a 30-second TTL. Successful writes
+  refresh the cache; failed writes invalidate the entry. Characters,
+  inventory, balances, and transfer state do not use this cache.
+- Generic Redis/LRU/warmup components are experimental fallback code excluded
+  from the default DLL. They are not connected to the player lifecycle and
+  are not needed for the normal settings cache.
+- The PostgreSQL adapter dynamically loads libpq, checks the connection when
+  the plugin loads, and provides parameterized character, settings, and
+  economy operations. Inventory writes use revision-checked compare-and-swap.
+  Settings load asynchronously after full Steam authentication; results are
+  applied on the game thread only if the player session is still current.
+- `!hud` (also `!hud on` and `!hud off`) toggles a multiline text HUD showing
+  the server, Steam session, and settings-load status. It is not a graphical
+  Panorama panel.
+- `InventorySystem` and `EconomySystem` expose registered services. After
+  Steam authentication, characters load in the background. A single character
+  is selected automatically; use `!character list`, `!character select <id>`,
+  or `!character create <name>` when needed. `!inventory` prints the stored
+  JSON snapshot to the player's console; `!balance` shows the wallet.
+  Item-acquisition commands and gameplay inventory rules are not implemented.
 
-Автоматическая загрузка настроек и базовый выбор/создание персонажа подключены. Сохранение игрового состояния при выходе и перенос runtime-состояния персонажа ещё не реализованы. Redirect — это reconnect, не бесшовный перенос.
+Settings loading and basic character selection/creation are implemented.
+Saving gameplay state on disconnect and transferring runtime character state
+are not. A redirect is a reconnect, not a seamless transfer.
 
-## 2. Требования
+## 2. Requirements
 
-- CS2 Dedicated Server и Metamod:Source; плагин должен быть собран для той же платформы.
-- PostgreSQL 14+ и доступная серверу runtime-библиотека libpq. PostgreSQL должен отвечать до загрузки плагина.
-- Redis для обычной сборки не нужен. Локальный кеш настроек работает в процессе плагина; он не разделяется между серверами и не заменяет PostgreSQL.
-- Docker Desktop нужен только для приведённого ниже Compose-сценария. Можно использовать уже установленный PostgreSQL/Redis, если изменить адреса и выполнить SQL-скрипты в них.
+- A CS2 dedicated server with Metamod:Source. Build the plugin for the same
+  platform as the server.
+- PostgreSQL 14+ and the libpq runtime library available to the server.
+  PostgreSQL must be reachable when the plugin loads.
+- Redis is not required for the standard build. The local settings cache runs
+  inside the plugin process and does not replace PostgreSQL or share data
+  between servers.
+- Docker Desktop is needed only for the Compose setup below. An existing
+  PostgreSQL/Redis installation can be used instead by changing the addresses
+  and applying the SQL scripts there.
 
-## 3. PostgreSQL: первый запуск через pgAdmin
+## 3. Start PostgreSQL with pgAdmin
 
-### 3.1 Запуск базы
+### 3.1 Start the database
 
-В корне репозитория скопируйте `.env.example` в `.env`. Замените каждое `replace-with-...` значение на отдельный длинный случайный пароль (латинские буквы и цифры, без пробелов и апострофов). Пароли в файле `.env` не должны попадать в Git.
+Copy `.env.example` to `.env` in the repository root. Replace every
+`replace-with-...` value with a distinct, long random password using Latin
+letters and digits, without spaces or apostrophes. Never commit `.env`.
 
-Для компьютера, на котором запущен сам игровой сервер, оставьте `OW_BIND_ADDRESS=127.0.0.1`. Откройте PowerShell в папке проекта:
+If the game server runs on this computer, leave
+`OW_BIND_ADDRESS=127.0.0.1`. Open PowerShell in the project directory:
 
 ```powershell
 docker compose up -d
 docker compose ps
 ```
 
-Статус контейнеров должен стать `running`/`healthy`. В pgAdmin создайте подключение с параметрами:
+Wait for the containers to report `running`/`healthy`. In pgAdmin, create a
+connection with:
 
 - Host: `127.0.0.1`
 - Port: `5432`
 - Maintenance database: `postgres`
 - Username: `postgres`
-- Password: значение `OW_PG_ADMIN_PASSWORD` из `.env`
+- Password: the `OW_PG_ADMIN_PASSWORD` value from `.env`
 
-Если на компьютере уже работает PostgreSQL на порту 5432, не запускайте второй экземпляр на том же порту. Используйте существующий PostgreSQL и его pgAdmin или измените host port в `compose.yaml` и используйте тот же порт в строке подключения плагина.
+If PostgreSQL is already using port 5432, do not start a second instance on
+the same port. Use the existing PostgreSQL server or change the host port in
+`compose.yaml` and use that port in the plugin connection string.
 
-Если вы уже запускали старую версию Compose из этого проекта, её volume сохраняет прежних пользователей/базу: новые значения `POSTGRES_USER` и `POSTGRES_DB` не переинициализируют существующие данные. Не удаляйте volume командой `docker compose down -v` ради «починки» — сначала сделайте резервную копию и проверьте, где лежат данные. Инструкции выше рассчитаны на новую пустую базу.
+An existing Compose volume retains its old users and databases; changing
+`POSTGRES_USER` or `POSTGRES_DB` does not reinitialize it. Do not run
+`docker compose down -v` to fix this. Back up the data and verify the volume
+first. The steps below assume a new, empty database.
 
-### 3.2 Создание ролей и базы (SQL для pgAdmin)
+### 3.2 Create roles and the database
 
-Есть две роли: `ow_migrator` владеет схемой и применяет обновления; `ow_app` используется плагином и имеет ограниченные права.
+There are two roles: `ow_migrator` owns the schema and applies migrations;
+`ow_app` is used by the plugin and has restricted permissions.
 
-1. В pgAdmin подключитесь к базе `postgres`, откройте **Query Tool**. Откройте `database/bootstrap/001_create_roles_and_database.sql` и выполните оба `CREATE ROLE`. Затем в **Login/Group Roles** откройте свойства каждой роли → **Definition** и задайте разные пароли, соответствующие `OW_PG_MIGRATOR_PASSWORD` и `OW_PG_APP_PASSWORD` из `.env`. SQL-файл намеренно не содержит паролей.
-2. В том же Query Tool выполните **отдельно** единственную команду из `database/bootstrap/002_create_database.sql`. `CREATE DATABASE` нельзя запускать внутри транзакции.
-3. Обновите список баз, подключитесь к `openworld` от имени `ow_migrator` и выполните по очереди:
+1. In pgAdmin, connect to the `postgres` database and open **Query Tool**.
+   Open `database/bootstrap/001_create_roles_and_database.sql` and execute
+   both `CREATE ROLE` statements. In **Login/Group Roles**, edit each role's
+   **Definition** and set distinct passwords matching
+   `OW_PG_MIGRATOR_PASSWORD` and `OW_PG_APP_PASSWORD` in `.env`. The SQL file
+   intentionally contains no passwords.
+2. In Query Tool, run the single command in
+   `database/bootstrap/002_create_database.sql` separately. `CREATE DATABASE`
+   cannot run inside a transaction.
+3. Refresh the database list, connect to `openworld` as `ow_migrator`, then
+   run these files in order:
    - `database/migrations/001_core.sql`
    - `database/migrations/002_application_functions.sql`
    - `database/migrations/003_inventory_functions.sql`
    - `database/migrations/004_player_server_routes.sql`
    - `database/bootstrap/003_app_permissions.sql`
 
-После этого таблицы будут в схеме `ow`. Если миграции 001-003 уже применены, выполните только `004_player_server_routes.sql`, затем повторно запустите `database/bootstrap/003_app_permissions.sql`, чтобы выдать `ow_app` права маршрутизации. В pgAdmin можно открыть `openworld` → **Schemas** → `ow` → **Tables**.
+The tables are created in the `ow` schema. If migrations 001-003 were already
+applied, run only `004_player_server_routes.sql`, then rerun
+`database/bootstrap/003_app_permissions.sql` to grant `ow_app` route
+permissions.
 
-Чтобы проверить SQL вручную, выполните `database/examples/quickstart.sql` в Query Tool базы `openworld` с ролью `ow_app`. Он создаёт нового тестового персонажа и начисляет ему 1000 единиц; при каждом запуске добавится ещё один тестовый персонаж.
+To try the SQL manually, run `database/examples/quickstart.sql` in the
+`openworld` database as `ow_app`. It creates a test character and credits
+1,000 units; each run creates another test character.
 
-Не запускайте плагин под `postgres` или `ow_migrator`: игровому процессу предназначена роль `ow_app`. Эти шаги работают также с уже установленным PostgreSQL — подключитесь в pgAdmin к нему вместо `127.0.0.1:5432`. Compose использует PostgreSQL 17; схема рассчитана на PostgreSQL 14+.
+Do not run the plugin as `postgres` or `ow_migrator`; use `ow_app`. These steps
+also work with an existing PostgreSQL installation. Compose uses PostgreSQL
+17; the schema supports PostgreSQL 14 and later.
 
-## 4. Кеш настроек и необязательный Redis fallback
+## 4. Settings cache and optional Redis fallback
 
-В стандартной DLL включён небольшой процессный кеш только для `LoadPlayerSettings`: максимум 512 пользователей, 4 MiB суммарного JSON payload и TTL 30 секунд. Он уменьшает повторные чтения настроек на одном сервере. Запись настроек проходит в PostgreSQL с проверкой revision; после успешной записи локальная запись обновляется, после ошибки — инвалидируется. Изменения, сделанные другим сервером, могут быть не видны до 30 секунд.
+The standard DLL includes a small process-local cache only for
+`LoadPlayerSettings`: up to 512 users, 4 MiB total JSON payload, and a
+30-second TTL. It reduces repeated reads on one server. Settings are still
+written to PostgreSQL with revision checks; a successful write refreshes the
+local entry and a failed write invalidates it. Changes made on another server
+may take up to 30 seconds to become visible.
 
-Кеш не используется для `LoadCharacter`, инвентаря, баланса, денежных транзакций, авторизации или transfer state. PostgreSQL остаётся источником истины. Этот кеш локален для процесса: он не передаёт данные на другой сервер, не прогревает настройки до входа и не делает переключение серверов моментальным.
+This cache is not used for characters, inventory, balances, transactions,
+authentication, or transfer state. PostgreSQL remains the source of truth.
+The cache is local to one process; it does not transfer or preload data for
+another server.
 
-Общие Redis/LRU/warmup компоненты — экспериментальный код, не подключённый к игровому lifecycle. Включать их нужно только для отдельной разработки/тестирования:
+Generic Redis/LRU/warmup components are experimental and disconnected from
+the player lifecycle. Enable them only for separate development or testing:
 
 ```powershell
 cmake -S . -B build-windows-release -A x64 -DOW_ENABLE_CACHE_FALLBACK=ON
 ```
 
-Это не требуется для нормальной игры. Даже при включении флага Redis не становится частью штатного входа или межсерверного переноса.
+This is not required for normal gameplay. Enabling the build option does not
+make Redis part of normal login or server transfers.
 
-#### Настройка Redis, только для экспериментов с fallback
+### Optional Redis test setup
 
-##### 4.1 На одном компьютере
+On one computer, leave `OW_BIND_ADDRESS=127.0.0.1` in `.env` and run
+`docker compose up -d`. In an experimental build, `provider = memory` does
+not require Redis; to test Redis, set `provider = redis`,
+`shared_provider = redis`, and `redis_host = 127.0.0.1`.
 
-Убедитесь, что `.env` содержит `OW_BIND_ADDRESS=127.0.0.1`, затем запустите `docker compose up -d`. В аварийной сборке для локального режима можно оставить `provider = memory`, тогда Redis не обязателен. Для проверки Redis задайте `provider = redis` и `shared_provider = redis`, оставив `redis_host = 127.0.0.1`.
+For two computers on a trusted home network:
 
-##### 4.2 Основной компьютер + ноутбук в домашней сети
+1. Run `ipconfig` on the main computer and find its LAN IPv4 address, for
+   example `192.168.1.50`.
+2. Set `OW_BIND_ADDRESS` to that address in `.env`, then run
+   `docker compose up -d` to recreate the port bindings.
+3. In Windows Firewall, allow Redis only from the laptop's address. Run
+   PowerShell as Administrator and replace the example address:
 
-Основной компьютер будет запускать Redis и, если нужно обоим игровым серверам, PostgreSQL. Не публикуйте эти порты в Интернет.
+   ```powershell
+   New-NetFirewallRule -DisplayName "OW Redis from laptop" -Direction Inbound -Protocol TCP -LocalPort 6379 -RemoteAddress 192.168.1.51 -Action Allow
+   ```
 
-1. На основном ПК выполните `ipconfig`, найдите IPv4-адрес сетевого адаптера, например `192.168.1.50`. Оба компьютера должны быть подключены к одной доверенной домашней сети.
-2. В `.env` на основном ПК измените `OW_BIND_ADDRESS=192.168.1.50`, подставив свой адрес, и выполните `docker compose up -d`, чтобы Compose пересоздал port bindings.
-3. В Windows Firewall основного ПК разрешите входящий Redis только с адреса ноутбука. Запустите PowerShell от имени администратора, замените пример на IPv4 ноутбука:
+   If the laptop needs direct PostgreSQL access, create a separate rule for
+   TCP 5432 and the laptop's address. Do not allow `Any` and do not forward
+   TCP 6379 or 5432 through the router.
+4. In both `openworld.ini` files, configure the same Redis endpoint, database,
+   and `redis_key_prefix`.
+5. Before starting CS2 on each computer, set the server process environment
+   variables with your own secrets:
 
-```powershell
-New-NetFirewallRule -DisplayName "OW Redis from laptop" -Direction Inbound -Protocol TCP -LocalPort 6379 -RemoteAddress 192.168.1.51 -Action Allow
-```
+   ```powershell
+   $env:OW_REDIS_USERNAME = 'default'
+   $env:OW_REDIS_PASSWORD = 'your-redis-password'
+   $env:OW_PG_CONNINFO = 'host=127.0.0.1 port=5432 dbname=openworld user=ow_app ****** sslmode=prefer connect_timeout=3'
+   ```
 
-Если ноутбук должен напрямую подключаться к PostgreSQL, создайте такое же отдельное правило только для TCP 5432 и адреса ноутбука. Не разрешайте `Any` и не пробрасывайте TCP 6379/5432 через роутер.
+   On the laptop, use the main computer's IP in `OW_PG_CONNINFO` if PostgreSQL
+   is accessible over the LAN. Use `OW_PG_APP_PASSWORD` for the PostgreSQL
+   password. PowerShell environment variables are inherited by child processes
+   started from that window; configure the environment of a Windows service
+   separately.
 
-4. В обоих `openworld.ini` задайте один Redis endpoint: `redis_host = 192.168.1.50`, `redis_port = 6379`, `provider = redis`, `shared_provider = redis`. На обоих игровых серверах укажите одинаковые Redis database и `redis_key_prefix`.
-5. Перед запуском CS2 на каждом компьютере задайте секреты для процесса сервера (значения замените на свои):
+Only expose the game-server port needed by players (usually UDP 27015) through
+the router. Redis and PostgreSQL must not be reachable from the Internet.
 
-```powershell
-$env:OW_REDIS_USERNAME = 'default'
-$env:OW_REDIS_PASSWORD = 'пароль-из-OW_REDIS_PASSWORD-в-.env'
-$env:OW_PG_CONNINFO = 'host=127.0.0.1 port=5432 dbname=openworld user=ow_app password=пароль-OW_PG_APP_PASSWORD sslmode=prefer connect_timeout=3'
-```
+## 5. Connect PostgreSQL to the plugin
 
-На ноутбуке в `OW_PG_CONNINFO` укажите IP основного ПК вместо `127.0.0.1`, если PostgreSQL открыт ему по LAN. Пароль Redis один и тот же на обоих серверах; пароль PostgreSQL — именно `OW_PG_APP_PASSWORD`. Переменные `$env:` доступны только текущему PowerShell и запущенным из него дочерним процессам. Для Windows-службы задайте их в окружении службы.
+The example `configs/openworld.ini` sets
+`persistence.provider = postgresql` and `connection_env = OW_PG_CONNINFO`.
+At load time, the plugin requires that environment variable, loads libpq,
+connects, and runs `SELECT 1`. If the variable, library, or database is
+unavailable, plugin loading fails; it does not silently fall back to memory.
 
-Если вы сознательно включили fallback, его можно настроить на общем Redis в приватной сети. Для игроков пробрасывайте на роутере только нужный игровой порт CS2 (обычно UDP 27015). Redis и PostgreSQL не должны быть доступны из Интернета даже при наличии белого IP.
+`[persistence].connect_timeout` is a connection timeout in seconds (1-60),
+passed to libpq separately from the connection string.
 
-## 5. Подключение PostgreSQL к плагину
+- **Windows:** install the x64 PostgreSQL client/runtime and add its `bin`
+  directory to the CS2 process `PATH`. It must contain `libpq.dll` and its
+  runtime dependencies.
+- **Linux:** install the libpq runtime package (for example `libpq5` on
+  Debian/Ubuntu). PostgreSQL development headers are not needed to build the
+  adapter.
+- A connection string looks like
+  `host=127.0.0.1 port=5432 dbname=openworld user=ow_app ****** sslmode=prefer connect_timeout=3`.
+  Do not store it in an INI file, Workshop content, or Git.
+- `ow_status` reports PostgreSQL, the local settings cache, and the optional
+  generic fallback. Other modules can obtain the adapter through
+  `GetPersistenceAdapter()`.
+- `OW_TEST_PG_CONNINFO` enables an optional integration test that writes test
+  rows. Use it only with a separate test database.
 
-В `configs/openworld.ini` настроено `persistence.provider = postgresql` и `connection_env = OW_PG_CONNINFO`. Плагин при загрузке требует эту переменную, динамически загружает libpq, соединяется и делает `SELECT 1`. Если переменная, библиотека или база недоступны, загрузка плагина завершается ошибкой; молчаливого перехода на память нет.
+Unit tests do not require a running PostgreSQL server or load libpq. The
+integration test runs only when `OW_TEST_PG_CONNINFO` is explicitly set.
 
-`[persistence].connect_timeout` задаёт таймаут подключения в секундах (от 1 до 60) и передаётся libpq отдельно от conninfo.
+## 6. Server and zone configuration
 
-- **Windows:** установите x64 PostgreSQL client/runtime и добавьте его папку `bin` в `PATH` процесса CS2. Там должны быть `libpq.dll` и её runtime-зависимости.
-- **Linux:** установите runtime-библиотеку libpq (например, пакет `libpq5` на Debian/Ubuntu). Заголовки PostgreSQL для сборки адаптера не нужны.
-- Строка подключения libpq имеет вид: `host=127.0.0.1 port=5432 dbname=openworld user=ow_app password=ваш_пароль sslmode=prefer connect_timeout=3`. Не сохраняйте её в INI/Workshop или в Git.
-- `ow_status` показывает статус PostgreSQL, локального кеша настроек и необязательного generic fallback. Остальные модули могут получить адаптер через `GetPersistenceAdapter()`.
-- `OW_TEST_PG_CONNINFO` включает опциональный интеграционный тест, который создаёт тестовые строки. Запускайте его только против отдельной тестовой базы.
-
-Обычные unit-тесты не требуют запущенного PostgreSQL и не загружают libpq. Интеграционный тест выполняется только при явно заданном `OW_TEST_PG_CONNINFO`.
-
-## 6. Конфигурация серверов и зон
-
-Исходный пример — [configs/openworld.ini](./configs/openworld.ini). Файл включён в пакет по пути `addons/cs2-openworld/configs/openworld.ini` относительно `game/csgo`. Путь можно переопределить через `OW_CONFIG_PATH`; относительные значения также считаются от каталога game. Устанавливайте весь каталог `addons/cs2-openworld`, включая `gamedata/cs2-openworld.games.txt`, а не только DLL. Неизвестные ключи/секции и пересекающиеся зоны считаются ошибкой.
+The source example is [`configs/openworld.ini`](./configs/openworld.ini). It
+is packaged at `addons/cs2-openworld/configs/openworld.ini`, relative to
+`game/csgo`. Override the path with `OW_CONFIG_PATH`; relative values are
+resolved from the game directory. Install the entire `addons/cs2-openworld`
+directory, including `gamedata/cs2-openworld.games.txt`, not just the DLL.
+Unknown keys/sections and overlapping zones are configuration errors.
 
 ```ini
 [core]
@@ -170,25 +268,39 @@ max_x = 0
 max_y = 2048
 ```
 
-Секция `[cache]` в примере настраивает только необязательный generic fallback, а не локальный кеш настроек, который включён независимо от этих параметров. Не меняйте её для обычного сервера. Только при явной экспериментальной сборке с `OW_ENABLE_CACHE_FALLBACK=ON` используйте настройки Redis из раздела 4. На каждом CS2-процессе задайте собственный `server_id`; `connect` — доступный клиенту адрес, не указывайте `localhost` для удалённого игрока. Зоны — прямоугольники XY в координатах мира CS2. Получите реальные координаты из своей карты; применение зоны к движению игрока пока не подключено.
+The `[cache]` section configures only the optional generic fallback, not the
+local settings cache. Leave it unchanged for a normal server. Redis settings
+are relevant only to an experimental build with
+`OW_ENABLE_CACHE_FALLBACK=ON`. Use a distinct `server_id` for each CS2 process;
+`connect` must be reachable by clients and must not be `localhost` for remote
+players. Zones are rectangular XY coordinates in the CS2 world; use measured
+coordinates from your map. Zone-based movement transitions are described
+below.
 
-Только в аварийной сборке `provider = redis` заставляет плагин выполнить `PING` при загрузке. Если Redis недоступен, такая сборка откажется загрузиться; автоматического перехода на память нет. Redis-клиент не поддерживает TLS и открывает TCP-соединение на каждую операцию. Не вызывайте его синхронно из frame hook.
+In an experimental Redis build, `provider = redis` makes the plugin issue a
+`PING` at load time. If Redis is unavailable, the plugin refuses to load;
+there is no automatic memory fallback. The Redis client does not support TLS
+and opens a TCP connection for each operation. Do not call it synchronously
+from a frame hook.
 
-## 7. Как работает аварийный общий кэш (не входит в стандартную сборку)
+## 7. Experimental shared-cache behavior
 
-1. Оба процесса подключаются к одному Redis и одному namespace.
-2. Ключ имеет вид `redis_key_prefix + logical_key`, например `player:<steamid>:settings`.
-3. Значение хранит revision, перевод строки и payload; Redis удаляет его по TTL.
-4. Запись идёт атомарным Redis Lua-скриптом, поэтому старая revision не заменит более новую.
-5. `AsyncCacheWarmer` выполняет работу вне игрового frame hook. Загрузчик не должен обращаться к API движка.
+When explicitly enabled, both processes connect to the same Redis instance
+and namespace. Keys have the form `redis_key_prefix + logical_key`, such as
+`player:<steamid>:settings`. Values store a revision, newline, and payload and
+expire after a TTL. Writes use an atomic Redis Lua script so an older revision
+does not replace a newer one. `AsyncCacheWarmer` runs outside the game frame
+hook and must not call engine APIs.
 
-Кеш — не источник истины и не механизм владения сессией. Не подтверждайте по нему деньги, права или владение персонажем. Он не требуется для карты, загрузки игрока или нормальной работы сервера. Для межсерверного перехода нужна отдельная корректная логика, а не более агрессивное кеширование.
+This cache is neither the source of truth nor a session-ownership mechanism.
+Do not use it to authorize balances, permissions, or character ownership. It
+is not required for the map, player login, or normal server operation.
 
-## 8. Простой переход между серверами
+## 8. Server transitions and routing
 
-Плагин поддерживает закреплённое назначение сервера и ручной переход из игрового чата: игрок вводит `!go <server_id>` (также принимается `!transfer <server_id>`). Например: `!go server-02`.
-
-Добавьте в кластерную конфигурацию:
+The plugin supports server affinity and manual chat transitions:
+`!go <server_id>` (also `!transfer <server_id>`), for example `!go server-02`.
+Add to the cluster configuration:
 
 ```ini
 [routing]
@@ -196,42 +308,43 @@ enforce_server_affinity = true
 lobby_server_id = lobby
 ```
 
-`lobby_server_id` должен совпадать с одной из секций `[servers.<id>]`. На каждом сервере кластера установите один и тот же `[routing]`, `environment`, полный список `[servers.*]` и конфигурацию PostgreSQL. Все серверы должны использовать общую базу и применённую миграцию `004_player_server_routes.sql`.
+`lobby_server_id` must match a `[servers.<id>]` section. Every cluster server
+must use the same `[routing]`, `environment`, full `[servers.*]` list, and
+PostgreSQL database, with migration `004_player_server_routes.sql` applied.
 
-Вход и переход выполняются так:
+After Steam authentication, the server looks up the route asynchronously.
+First-time players are assigned to the lobby. If a player connects to a
+different managed server, the destination is selected only from the local
+`[servers.*]` list. On the assigned server, PostgreSQL updates
+`last_seen_server_id` and `last_seen_at`. `!go <server_id>` atomically updates
+the assignment and sends a CS2 `connect` command only after PostgreSQL
+confirms it. This reconnect does not transfer position or runtime character
+state.
 
-1. После подтверждения Steam-аутентификации сервер асинхронно вызывает PostgreSQL-функцию маршрута; игровой поток не ждёт ответа БД.
-2. При первом входе создаётся назначение на lobby. Если игрок подключился к другому серверу кластера, назначенный адрес берётся только из локального списка `[servers.*]`, а не из пользовательского ввода.
-3. На назначенном сервере БД обновляет `last_seen_server_id` и `last_seen_at`. Подключение к другому серверу, где также установлен этот плагин и включена affinity, снова проверит запись и перенаправит игрока на его назначение.
-4. `!go <server_id>` сначала атомарно изменяет сохранённое назначение, затем после успешного ответа БД отправляет клиенту CS2 команду `connect`. Это обычный reconnect; позиция и runtime-состояние персонажа не переносятся.
+Routing applies only to servers running this plugin with affinity enabled.
+The plugin cannot intercept client commands on unrelated servers. If
+PostgreSQL is disabled or the migration is missing, routing fails closed.
 
-Маршрутизация срабатывает только на серверах, где установлен плагин и включена эта настройка. Плагин не перехватывает клиентскую команду до подключения к чужому/неуправляемому серверу и не управляет тем, что игрок делает вне вашего кластера. При отключённой PostgreSQL/отсутствующей миграции назначение не считается проверенным, а запрос маршрута завершается ошибкой (проверка выполняется fail-closed).
+Automatic zone transitions use the same rectangular `[zones.*]` areas. When
+a living, Steam-authenticated player crosses into another server's configured
+zone, the plugin stores the destination in PostgreSQL and reconnects the
+client. Checks run on the game thread about four times per second. This
+requires `routing.enforce_server_affinity = true`,
+`modules.transfer = true`, and a configured zone for the current map. All
+zones must share one world coordinate system. The destination map chooses the
+spawn point; player position and velocity do not carry over. No transition
+occurs if the player is outside all zones or inside ambiguous overlapping
+zones assigned to different servers.
 
-Автоматический переход между зонами использует те же прямоугольники `[zones.*]`: когда живой игрок пересекает границу своей зоны и его координаты X/Y входят в зону другого сервера, назначение сначала сохраняется в PostgreSQL, после чего клиент переподключается к нему. Проверка выполняется на игровом потоке примерно четыре раза в секунду и только после полной Steam-аутентификации. Для этого нужны `routing.enforce_server_affinity = true`, `modules.transfer = true` и настроенная зона текущей карты. Зоны должны описывать единую систему координат игрового мира; точка появления на сервере назначения определяется самой картой, координаты/скорость персонажа через reconnect не переносятся. Если точка вне всех настроенных зон либо попадает в неоднозначно пересекающиеся зоны разных серверов, переход не выполняется.
+For each server, configure a unique ID, client-reachable address and port,
+and the correct map. Keep the same destination list on all instances while
+setting a different `core.server_id` on each one. The experimental
+`adapters.particle_menu` option must be explicitly set to `true` and tested
+with your CS2 build; it installs a KHook transmit filter. If unset, the menu
+and hook remain disabled.
 
-Для каждого сервера укажите уникальный `server_id`, публичный адрес с портом, который доступен клиентам, и реальную карту:
-
-```ini
-[core]
-server_id = west
-environment = development
-
-[servers.west]
-connect = 203.0.113.10:27015
-map = ow_west
-max_players = 32
-
-[servers.east]
-connect = 203.0.113.10:27016
-map = ow_east
-max_players = 32
-```
-
-Этот фрагмент иллюстрирует только секции серверов: сохраните обязательные `[persistence]`, `[cache]` и `[zones.*]` из полного конфига. Один и тот же список серверов должен быть установлен на всех экземплярах; меняйте `core.server_id` для каждого. `connect` — адрес, на который подключается игровой клиент, а не внутренний адрес PostgreSQL/Redis. Для нескольких серверов на одной машине задайте разные игровые порты и проверьте проброс каждого порта.
-
-`adapters.particle_menu` нужно включать явно (`true`) только после проверки Particle UI на вашей сборке CS2: этот экспериментальный renderer устанавливает KHook для фильтрации transmit. Если настройка отсутствует, меню выключено и хук не устанавливается; остальные UI/текстовые функции продолжают работать.
-
-Чтобы вручную вернуть назначение игрока в lobby, подключитесь к БД ролью `ow_migrator` и выполните, подставив SteamID и окружение:
+To manually move a player's assignment back to the lobby, connect to the
+database as `ow_migrator` and substitute the SteamID and environment:
 
 ```sql
 UPDATE ow.player_server_routes
@@ -239,26 +352,45 @@ SET server_id = 'lobby', updated_at = now()
 WHERE environment = 'production' AND steam_id = 76561198000000000;
 ```
 
-Обновляйте назначение только на `server_id`, существующий в конфиге каждого сервера. Если сохранённый сервер удалён из конфигурации, плагин не выбирает произвольный адрес: он пишет ошибку в лог и не принимает маршрут игрока.
+Only assign a `server_id` present in every server's configuration. If a saved
+destination is missing, the plugin logs an error and does not choose another
+address.
 
-### Что переносится
+## 9. Maps and Workshop
 
-Закреплённое назначение маршрутизирует только сервер подключения и не является полноценным transfer coordinator. В плагине ещё нет атомарного сохранения позиции/состояния персонажа при выходе, резервирования сессии на другом сервере или восстановления позиции на целевой карте. Не рассчитывайте, что текущее состояние игрока переносится. Автоматический переход использует прямоугольные XY-зоны из `[zones.*]`, а не Hammer-trigger; он работает только при настроенной общей системе координат.
+Create and validate maps using Counter-Strike 2 Workshop Tools / Hammer. Use
+your own map, a community map whose terms permit your use, or properly
+licensed materials. Publish maps and shared resources as separate Workshop
+packages.
 
-Чтобы проверить, вначале подключите оба сервера и оба порта, положите одинаковый конфиг с соответствующими `server_id` и проверьте Steam-аутентификацию. Затем проверьте оба сценария: вручную введите `!go east` и пройдите через границу настроенных зон. Подтвердите, что назначение меняется в PostgreSQL, клиент переподключается и второй сервер не перенаправляет его обратно. Сборка и unit-тесты не заменяют live-тест redirect на реальном CS2 client/server.
+There is no production tool that automatically converts a complete map from
+another commercial engine to Source 2 while preserving geometry, materials,
+collision, lighting, logic, and gameplay. AI may help create new concepts,
+meshes, or textures, but it does not replace scale/material/collision/light
+preparation and validation in Hammer. For your own source assets, see
+[Sollumz](https://github.com/Sollumz/Sollumz) and
+[Blender](https://www.blender.org/), subject to format limitations. Do not
+extract or distribute commercial-game maps or assets without the required
+rights. See [MAP_AUTHORING.md](./MAP_AUTHORING.md) for practical map guidance.
 
-## 9. Карта и Workshop
+## 10. Implementation boundaries
 
-Карту создают и проверяют в Counter-Strike 2 Workshop Tools / Hammer. Используйте собственную карту, разрешённую community-карту или лицензированные материалы. Карты и общие ресурсы публикуйте отдельными Workshop-пакетами.
+The PostgreSQL adapter loads settings in a background worker after Steam
+authentication, so login is not blocked. Automatic character selection is
+implemented, but saving position/game state on disconnect is not. A complete
+transfer coordinator is not implemented; database tables do not imply
+gameplay features. Generic LRU/Redis/warmup fallback is excluded from the
+standard build. Inventory, economy, health, weapons, vehicles, particle
+rendering, and the Workshop pipeline are incomplete. NPCs, audio, dialogue,
+quests, and social features are outside the current implementation.
 
-Production-инструмента, который автоматически переносит полноценную карту из другого коммерческого движка в Source 2, сохраняя геометрию, материалы, коллизии, свет, логику и игровое поведение, нет. AI может помогать с новыми концептами, мешами или текстурами, но не заменяет подготовку масштаба, материалов, коллизий, освещения и ручную проверку в Hammer. Для собственных исходников можно исследовать [Sollumz](https://github.com/Sollumz/Sollumz) и [Blender](https://www.blender.org/), учитывая ограничения форматов. Не извлекайте и не распространяйте карты и ассеты коммерческих игр без необходимых прав.
+## 11. Build and install the package
 
-## 10. Границы текущей реализации
+From the repository root, run `.\build.ps1 -Reconfigure -RunTests` in
+PowerShell. The package is written to
+`build-windows-release/package`; normal builds also refresh it.
 
-PostgreSQL adapter загружает настройки после Steam-аутентификации в фоновом worker; это не блокирует игровой вход. Автоматический выбор персонажа и сохранение позиции/игрового состояния при выходе пока не реализованы. Transfer coordinator не завершён, а таблицы не означают готовые игровые функции. Generic LRU/Redis/warmup fallback не входит в стандартную сборку. Также ещё не завершены инвентарь, экономика, здоровье, оружие, транспорт, Particle UI rendering и Workshop pipeline. NPC, audio, dialog, quests и social в объём работ не входят.
-
-## 11. Сборка и установка пакета
-
-Из корня репозитория выполните `.\build.ps1 -Reconfigure -RunTests` в PowerShell. Готовый пакет появится в `build-windows-release/package`; обычная сборка также обновляет его.
-
-Корень пакета содержит `addons/` и `cfg/`, то есть соответствует содержимому `game/csgo`. Скопируйте эти две папки в `game/csgo` сервера, объединяя их с уже установленными папками. Подробные требования к Metamod, PostgreSQL, `OW_PG_CONNINFO` и настройке включённого конфига находятся в `PACKAGE_INSTALL.txt`.
+The package root contains `addons/` and `cfg/`, matching a server's
+`game/csgo` directory. Copy and merge these folders into the server's
+`game/csgo`. See [`PACKAGE_INSTALL.txt`](./PACKAGE_INSTALL.txt) for Metamod,
+PostgreSQL, `OW_PG_CONNINFO`, and enabled-configuration requirements.

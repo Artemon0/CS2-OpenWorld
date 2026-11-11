@@ -13,10 +13,17 @@ The implementation is server-authoritative. Steam authorization must be confirme
 - PostgreSQL-backed server affinity routes authenticated players to a configured lobby on first join and persists their assigned server across the cluster. `!go <server_id>` stores the new route before redirecting. This is a reconnect, not a seamless transfer, and still needs live multi-server validation.
 - Automatic zone transitions use configured XY rectangles to assign and reconnect living players to the next server after crossing a chunk boundary. They require a shared world-coordinate layout and do not preserve position across the reconnect.
 
-The architecture specification, including accepted decisions and open technical questions, is in [CS2 Open World.md](./CS2%20Open%20World.md).
-Operator instructions for the cluster config, Redis, PostgreSQL schema, deployment, and map pipeline are in [SETUP.md](./SETUP.md).
-Russian manual map-authoring suggestions and portal setup are in [РУКОВОДСТВО_ПО_РУЧНОЙ_КАРТЕ.md](./РУКОВОДСТВО_ПО_РУЧНОЙ_КАРТЕ.md).
-Original project contributions are proprietary; third-party terms and commercial-distribution caveats are documented in [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md). This notice does not establish that commercial use of a CS2 modification is authorized.
+The English architecture overview is in [ARCHITECTURE.md](./ARCHITECTURE.md); the detailed original specification is available in [Russian](./CS2%20Open%20World.ru.md).
+Operator instructions are in [SETUP.md](./SETUP.md), with a [Russian translation](./SETUP.ru.md).
+Map-authoring suggestions are in [MAP_AUTHORING.md](./MAP_AUTHORING.md), with a [Russian translation](./MAP_AUTHORING.ru.md).
+
+## License and language
+
+CS2 Open World is licensed under the GNU Affero General Public License, version 3 only
+(AGPL-3.0-only); see [LICENSE](./LICENSE). Third-party components retain their own terms,
+listed in [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md). AGPL does not itself prohibit
+commercial use or sales, and it cannot override Valve's separate distribution rules. A Russian
+project overview is available in [README.ru.md](./README.ru.md).
 
 ## Quick start
 

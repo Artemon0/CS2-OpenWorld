@@ -91,5 +91,5 @@ typedef double f64;
 #define VPROF_LEVEL 1
 
 // clang-format off
-#define VPROF_SCOPE_BEGIN_CS2AC(tag) do { VPROF_(tag, 1, "CS2AC", false, 0)
+#define VPROF_SCOPE_BEGIN_CS2OW(tag) do { VPROF_(tag, 1, "CS2OW", false, 0)
 // clang-format on

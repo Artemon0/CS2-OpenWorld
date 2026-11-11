@@ -1,5 +1,7 @@
 # CS2 OPEN WORLD
 ## Архитектурная спецификация
+
+Краткий обзор на английском: [ARCHITECTURE.md](./ARCHITECTURE.md).
 **Версия:** 0.1  
 **Статус:** проектирование  
 **Основная платформа:** Counter-Strike 2  
@@ -2079,7 +2081,8 @@ Workshop не гарантирует произвольную установку
 ```text
 CS2-OpenWorld/
 ├── CMakeLists.txt
-├── CS2 Open World.md
+├── ARCHITECTURE.md
+├── CS2 Open World.ru.md
 ├── README.md
 ├── src/
 │   ├── core/
