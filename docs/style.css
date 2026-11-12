@@ -303,3 +303,5 @@ footer {
         letter-spacing: -2px
     }
 }
+
+.repo-link{font-size:12px;font-weight:700;white-space:nowrap;color:var(--green)}
