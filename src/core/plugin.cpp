@@ -9,6 +9,8 @@
 
 using ow::ui::particle::ParticleMenuManager;
 
+// Test fallback cache
+// #define OW_ENABLE_CACHE_FALLBACK
 #ifdef OW_ENABLE_CACHE_FALLBACK
 #include "modules/persistence/cache_manager.h"
 #include "modules/persistence/redis_cache.h"
@@ -27,6 +29,8 @@ using ow::ui::particle::ParticleMenuManager;
 #include <string_view>
 #include <utility>
 
+// Test fallback cache
+// #define OW_ENABLE_CACHE_FALLBACK
 #ifdef OW_ENABLE_CACHE_FALLBACK
 namespace
 {
