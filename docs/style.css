@@ -1,0 +1,305 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap');
+
+:root {
+    color-scheme: dark;
+    --bg: #101312;
+    --panel: #191f1c;
+    --ink: #edf1eb;
+    --muted: #a6b0a8;
+    --line: #303a34;
+    --green: #b9ef71
+}
+
+* {
+    box-sizing: border-box
+}
+
+body {
+    margin: 0;
+    background: radial-gradient(ellipse at 75% -15%, #304128, transparent 34rem), var(--bg);
+    color: var(--ink);
+    font: 16px/1.75 Manrope, system-ui, sans-serif
+}
+
+header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 16px 5vw;
+    background: #101312e8;
+    border-bottom: 1px solid #fff1;
+    backdrop-filter: blur(12px)
+}
+
+.brand {
+    font-weight: 800;
+    color: var(--ink);
+    white-space: nowrap
+}
+
+.brand i {
+    color: var(--green);
+    font-style: normal
+}
+
+nav {
+    display: flex;
+    gap: 22px
+}
+
+nav a {
+    font-size: 13px;
+    color: var(--muted);
+    font-weight: 700
+}
+
+a {
+    color: var(--green);
+    text-decoration: none
+}
+
+a:hover {
+    text-decoration: underline
+}
+
+nav a:hover {
+    color: var(--green)
+}
+
+button {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 12px;
+    color: var(--green);
+    cursor: pointer
+}
+
+main {
+    max-width: 1040px;
+    margin: auto;
+    padding: 70px 24px
+}
+
+.hero {
+    padding: 45px 0 100px
+}
+
+label {
+    font: 500 11px 'DM Mono', monospace;
+    letter-spacing: 2px;
+    color: var(--green)
+}
+
+h1 {
+    font-size: clamp(42px, 7vw, 72px);
+    line-height: 1.08;
+    letter-spacing: -3px;
+    max-width: 820px;
+    margin: 15px 0 20px
+}
+
+h2 {
+    font-size: 27px;
+    letter-spacing: -1px;
+    margin: 36px 0 12px
+}
+
+h3 {
+    font-size: 19px;
+    margin: 10px 0 4px
+}
+
+.lead {
+    font-size: 18px;
+    color: #c5cec6;
+    max-width: 760px
+}
+
+.button {
+    display: inline-block;
+    margin-top: 18px;
+    padding: 12px 18px;
+    border-radius: 8px;
+    background: var(--green);
+    color: #15200e;
+    font-weight: 800
+}
+
+.cards {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+    margin: 20px 0 46px
+}
+
+.cards>a,
+.cards article {
+    padding: 23px;
+    background: linear-gradient(135deg, #1b211f, #151918);
+    border: 1px solid var(--line);
+    border-radius: 13px;
+    color: var(--ink)
+}
+
+.cards>a:hover {
+    border-color: #839b62;
+    text-decoration: none;
+    transform: translateY(-2px)
+}
+
+.cards b {
+    font: 12px 'DM Mono', monospace;
+    color: var(--green)
+}
+
+.cards p,
+aside p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 14px
+}
+
+aside {
+    margin: 20px 0;
+    padding: 22px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px
+}
+
+.doc {
+    max-width: 900px
+}
+
+.doc h1 {
+    font-size: 58px
+}
+
+.doc h2 {
+    margin-top: 40px
+}
+
+.doc p,
+.doc li {
+    color: #bbc5bd
+}
+
+.doc li {
+    padding: 4px 0
+}
+
+code {
+    font: 13px 'DM Mono', monospace;
+    background: #222a24;
+    color: #e3f3d3;
+    padding: 2px 5px;
+    border-radius: 4px
+}
+
+pre {
+    background: #090c0b;
+    border: 1px solid var(--line);
+    padding: 20px;
+    border-radius: 10px;
+    overflow: auto
+}
+
+pre code {
+    background: none
+}
+
+.diagram {
+    margin: 32px 0;
+    padding: 25px;
+    text-align: center;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: #151a18
+}
+
+.diagram>div:first-child {
+    line-height: 2;
+    font-weight: 700
+}
+
+.diagram strong {
+    color: var(--green)
+}
+
+.diagram small {
+    font-weight: 400;
+    color: var(--muted)
+}
+
+.row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 14px
+}
+
+.row>div {
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px
+}
+
+.status {
+    grid-template-columns: repeat(2, 1fr)
+}
+
+.status h3 {
+    margin-top: 14px
+}
+
+.experimental {
+    color: #ffd479 !important
+}
+
+.planned {
+    color: #aab3b6 !important
+}
+
+footer {
+    border-top: 1px solid var(--line);
+    padding: 22px 5vw;
+    color: var(--muted);
+    font-size: 12px
+}
+
+@media(max-width:760px) {
+    header {
+        flex-wrap: wrap
+    }
+
+    nav {
+        order: 3;
+        width: 100%;
+        overflow: auto;
+        gap: 18px
+    }
+
+    nav a {
+        white-space: nowrap
+    }
+
+    .cards,
+    .status {
+        grid-template-columns: 1fr
+    }
+
+    main {
+        padding-top: 45px
+    }
+
+    h1,
+    .doc h1 {
+        font-size: 43px;
+        letter-spacing: -2px
+    }
+}

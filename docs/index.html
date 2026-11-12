@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>CS2 Open World — Docs</title>
+    <link rel="stylesheet" href="style.css">
+    <script defer src="script.js"></script>
+</head>
+
+<body>
+    <header><a class="brand" href="index.html">CS2 <i>Open World</i></a>
+        <nav><a href="index.html" data-i18n="home">Home</a><a href="architecture.html"
+                data-i18n="arch">Architecture</a><a href="setup.html" data-i18n="setup">Setup</a><a href="features.html"
+                data-i18n="features">Features</a><a href="development.html" data-i18n="dev">Development</a></nav><button
+            id="language-toggle">RU</button>
+    </header>
+    <main>
+        <section class="hero"><label data-i18n="eyebrow">PROJECT DOCUMENTATION</label>
+            <h1 data-i18n="title">A persistent world across CS2 servers.</h1>
+            <p class="lead" data-i18n="intro">CS2 Open World is a server-authoritative Counter-Strike 2 plugin built
+                with C++, Metamod:Source and the CS2 HL2SDK. Learn what works today, how the pieces fit together, and
+                how to run it.</p><a class="button" href="setup.html" data-i18n="start">Get started →</a>
+        </section>
+        <section><label data-i18n="sections">DOCUMENTATION</label>
+            <h2 data-i18n="find">Explore the project</h2>
+            <div class="cards"><a href="architecture.html"><b>01</b>
+                    <h3 data-i18n="archT">Architecture</h3>
+                    <p data-i18n="archD">Runtime layers, modules, persistence and boundaries.</p>
+                </a><a href="setup.html"><b>02</b>
+                    <h3 data-i18n="setupT">Setup & deployment</h3>
+                    <p data-i18n="setupD">Build the plugin, configure PostgreSQL, install on a server.</p>
+                </a><a href="features.html"><b>03</b>
+                    <h3 data-i18n="featT">Features & status</h3>
+                    <p data-i18n="featD">Implemented functionality, commands and known limits.</p>
+                </a><a href="development.html"><b>04</b>
+                    <h3 data-i18n="devT">Development</h3>
+                    <p data-i18n="devD">Repository map, build workflow and implementation notes.</p>
+                </a></div>
+            <aside>
+                <h2 data-i18n="more">More project documents</h2>
+                <p data-i18n="moreD">Detailed guides and original design material:</p><a href="../README.md"
+                    data-i18n="readme">Project README</a> · <a href="../MAP_AUTHORING.md" data-i18n="maps">Map
+                    authoring</a> · <a href="../CS2%20Open%20World.ru.md" data-i18n="spec">Full specification (RU)</a> ·
+                <a href="ROADMAP.md">Roadmap</a>
+            </aside>
+        </section>
+    </main>
+    <footer>CS2 Open World · AGPL-3.0-only · <span data-i18n="foot">Docs describe current implementation; planned
+            features are identified.</span></footer>
+</body>
+
+</html>
