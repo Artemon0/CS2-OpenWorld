@@ -1,5 +1,7 @@
 # CS2 Open World
 
+> ЗНАЙТЕ, ЭТО СГЕНЕРИРОВАНО ИИ НА ПРИМЕРНО 60% (или больше)
+
 CS2 Open World — серверный плагин для Counter-Strike 2 на C++, Metamod:Source
 и hl2sdk-cs2. Ядро плагина находится в `src/core/`; игровые и инфраструктурные
 компоненты расположены в `src/adapters/`, `src/modules/` и `src/ui/`.
