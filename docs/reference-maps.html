@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="description" content="CS2 Open World Architecture — Runtime layers, modules, persistence and boundaries.">
+    <title>Map authoring — CS2 Open World</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="style.css">
+    <script defer src="script.js"></script>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23101312'/><rect x='6' y='6' width='20' height='20' rx='3' fill='none' stroke='%23b9ef71' stroke-width='2'/><path d='M10 16h12M16 10v12' stroke='%23b9ef71' stroke-width='2' stroke-linecap='round'/></svg>">
+</head>
+<body>
+    <header>
+        <a class="brand" href="index.html">CS2 <i>Open World</i></a>
+        <nav aria-label="Main navigation">
+            <a href="index.html" data-i18n="home">Home</a>
+            <a href="architecture.html" data-i18n="arch">Architecture</a>
+            <a href="setup.html" data-i18n="setup">Setup</a>
+            <a href="features.html" data-i18n="features">Features</a>
+            <a href="development.html" data-i18n="dev">Development</a>
+            <a href="specification.html" data-i18n="specNav">Specification</a>
+            <a href="map-authoring.html" data-i18n="mapNav">Map Authoring</a>
+        </nav>
+        <a class="repo-link" href="https://github.com/Artemon0/CS2-OpenWorld" target="_blank" rel="noopener" data-i18n="repoLink">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
+            GitHub
+        </a>
+        <button type="button" id="language-toggle" aria-label="Switch language">RU</button>
+    </header>
+    <main class="doc reference-doc">
+        <p class="reference-back"><a href="reference.html">← All documents / Все документы</a></p>
+        <div class="reference-source">MAP_AUTHORING.md</div>
+<h1 id="manual-map-authoring-guide">Manual map-authoring guide</h1>
+<p>This is a practical list of content that a map author can prepare in Hammer
+and Workshop Tools without modifying the engine. It describes a future
+OpenWorld map; it does not assume that such a map already exists.</p>
+<h2 id="1-server-portals">1. Server portals</h2>
+<p>A transition can be marked with an arch, door, elevator, tunnel, transit
+station, or sign. Put the destination name and a clear instruction nearby:</p>
+<pre><code class="language-text">Travel to the Eastern District
+Type in chat: !go east
+</code></pre>
+<p>The plugin supports <code>!go &lt;server_id&gt;</code> for Steam-authenticated players. It
+redirects to the endpoint configured in <code>configs/openworld.ini</code>; valid IDs
+come from <code>[servers.&lt;server_id&gt;]</code>.</p>
+<p><strong>Limitation:</strong> portal geometry and <code>trigger_multiple</code> do not start a
+transition. The player must enter the chat command; trigger detection and
+automatic transfer are not implemented.</p>
+<h2 id="2-configure-openworldini">2. Configure <code>openworld.ini</code></h2>
+<p>Set a distinct <code>core.server_id</code> for each game-server process. Add each server's
+ID, client-reachable address and port, and map:</p>
+<pre><code class="language-ini">[core]
+server_id = west
+environment = development
+
+[servers.west]
+connect = 203.0.113.10:27015
+map = ow_west
+max_players = 32
+
+[servers.east]
+connect = 203.0.113.10:27016
+map = ow_east
+max_players = 32
+</code></pre>
+<p>Keep the required <code>[persistence]</code>, <code>[cache]</code>, and <code>[zones.*]</code> sections from
+the complete configuration. Every server must have the same destination list,
+but its <code>core.server_id</code> must identify that instance. <code>connect</code> is the public
+game-server address clients use, not a PostgreSQL or Redis address. When
+hosting multiple servers on one machine, use distinct game ports and verify
+port forwarding and firewall rules.</p>
+<p>After restarting the plugin, a player on <code>west</code> can test the transition with:</p>
+<pre><code class="language-text">!go east
+</code></pre>
+<p>This reconnects the client; it is not a seamless transfer. Position, weapons,
+health, and character runtime state are not guaranteed to carry over, and the
+plugin does not automatically save them before disconnecting.</p>
+<h2 id="3-reduce-runtime-entity-counts">3. Reduce runtime entity counts</h2>
+<ul>
+<li>Build static walls, roads, buildings, and terrain into appropriate meshes
+and compile them into map geometry.</li>
+<li>Use <code>prop_static</code> for non-moving decoration. Consider <code>Force Bake To World</code>
+(<code>baketoworld</code>) when an object can be merged into world geometry and needs no
+animation, physics, or interaction.</li>
+<li>Keep <code>prop_dynamic</code>, physics props, and interactive entities only where
+their behavior is needed.</li>
+<li>Do not disable mesh merging without a reason. Check visual quality,
+lighting, collision, and performance after baking and compiling.</li>
+<li>Leave headroom in the runtime entity budget. The SDK's <code>MAX_TOTAL_ENTITIES</code>
+is index capacity, not a recommended per-map budget.</li>
+<li>Plan a large world as multiple map segments within Source 2 limits. Visual
+effects do not provide streaming or increase entity limits.</li>
+</ul>
+<h2 id="4-prepare-content-in-hammer-and-workshop">4. Prepare content in Hammer and Workshop</h2>
+<p>These are content-authoring tasks, not plugin features:</p>
+<ul>
+<li><strong>Spawn points:</strong> choose safe spawn locations for every server or sector;
+keep them outside solid geometry.</li>
+<li><strong>Transitions:</strong> mark portals with doors, markers, lighting, signs, and
+clear destination instructions.</li>
+<li><strong>Navigation:</strong> add road signs, district names, map legends, and landmarks
+so players can orient themselves without automatic GPS.</li>
+<li><strong>Collision:</strong> test passages, stairs, slopes, doorways, and boundaries so
+players do not get stuck or fall out of the map.</li>
+<li><strong>Visibility:</strong> use level geometry, tunnels, turns, interiors, and natural
+sightlines to control long views. This is ordinary level design, not hiding
+network data from clients.</li>
+<li><strong>Lighting and environment:</strong> configure lighting and sky using map tools.
+Visual effects do not hide network data or stream map sections.</li>
+<li><strong>Workshop packages:</strong> separate the map and shared resources into clear
+packages. Test downloads on a clean client without the project sources.</li>
+<li><strong>Test map:</strong> begin with a small vertical slice containing a spawn, short
+route, portal marker, and transition to a second server. Test both servers,
+the map, and real port reachability.</li>
+</ul>
+<h2 id="5-features-that-require-plugin-work">5. Features that require plugin work</h2>
+<p>Hammer entities alone cannot provide:</p>
+<ol>
+<li>Triggering <code>!go</code> when a player enters a trigger, with repeat protection.</li>
+<li>Checking destination availability and free slots before redirecting.</li>
+<li>Saving a transfer snapshot in PostgreSQL, issuing a one-time ticket,
+reserving the player, and restoring state on the destination server.</li>
+<li>Choosing a safe destination spawn and converting coordinates between
+sectors.</li>
+<li>Automatically selecting a destination server from coordinates or a portal.</li>
+<li>Seamless transitions without disconnecting and reconnecting.</li>
+</ol>
+<p>Do not assume these features exist just because a map has a trigger, the
+configuration has a zone, or PostgreSQL has a related table. The currently
+working transition is the manual <code>!go &lt;server_id&gt;</code> command followed by a
+normal client reconnect.</p>
+
+    </main>
+    <footer>CS2 Open World · AGPL-3.0-only</footer>
+</body>
+</html>

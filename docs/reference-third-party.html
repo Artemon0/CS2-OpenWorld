@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="description" content="CS2 Open World Architecture — Runtime layers, modules, persistence and boundaries.">
+    <title>Third-party notices — CS2 Open World</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="style.css">
+    <script defer src="script.js"></script>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23101312'/><rect x='6' y='6' width='20' height='20' rx='3' fill='none' stroke='%23b9ef71' stroke-width='2'/><path d='M10 16h12M16 10v12' stroke='%23b9ef71' stroke-width='2' stroke-linecap='round'/></svg>">
+</head>
+<body>
+    <header>
+        <a class="brand" href="index.html">CS2 <i>Open World</i></a>
+        <nav aria-label="Main navigation">
+            <a href="index.html" data-i18n="home">Home</a>
+            <a href="architecture.html" data-i18n="arch">Architecture</a>
+            <a href="setup.html" data-i18n="setup">Setup</a>
+            <a href="features.html" data-i18n="features">Features</a>
+            <a href="development.html" data-i18n="dev">Development</a>
+            <a href="specification.html" data-i18n="specNav">Specification</a>
+            <a href="map-authoring.html" data-i18n="mapNav">Map Authoring</a>
+        </nav>
+        <a class="repo-link" href="https://github.com/Artemon0/CS2-OpenWorld" target="_blank" rel="noopener" data-i18n="repoLink">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
+            GitHub
+        </a>
+        <button type="button" id="language-toggle" aria-label="Switch language">RU</button>
+    </header>
+    <main class="doc reference-doc">
+        <p class="reference-back"><a href="reference.html">← All documents / Все документы</a></p>
+        <div class="reference-source">THIRD_PARTY_NOTICES.md</div>
+<h1 id="third-party-notices">Third-party notices</h1>
+<p>Original CS2 Open World contributions are licensed under the GNU Affero General
+Public License, version 3 only (AGPL-3.0-only); see the repository root
+<a href="https://github.com/Artemon0/CS2-OpenWorld/blob/main/LICENSE"><code>LICENSE</code></a>. This license does not relicense third-party material.
+This inventory covers the components identified in the current build
+configuration; it is not a complete legal or supply-chain audit.</p>
+<p>This notice describes the current tree. It does not retroactively revoke
+permissions granted for earlier published versions under a different license;
+check the applicable version and its license when evaluating an older copy.</p>
+<h2 id="commercial-distribution-warning">Commercial distribution warning</h2>
+<p>AGPL does not itself prohibit commercial use or charging for copies. It also
+does not grant permission to distribute a CS2 modification in violation of
+Valve's separate terms.</p>
+<p>Valve's official <a href="https://partner.steamgames.com/doc/sdk/uploading/distributing_source_engine">Source Engine mod distribution guidance</a>
+states that mods are expected by default to be non-commercial, defines paid
+access and donations as commercial, and says that Valve very rarely permits
+mods to be sold. A paid CS2 server plugin may fall within restrictions that
+the project's own license cannot override. Obtain written confirmation from
+Valve (and qualified legal advice) before advertising, selling, or otherwise
+commercially distributing this plugin. Do not treat this repository or its
+license files as that permission.</p>
+<h2 id="components-used-by-the-plugin">Components used by the plugin</h2>
+<ul>
+<li><strong>Metamod:Source</strong> — zlib/libpng license. The upstream notice is in
+<code>metamod-source/LICENSE.txt</code>; a copy is shipped as
+<code>licenses/Metamod-zlib.txt</code>. The plugin uses its SDK interfaces and KHook
+service; the plugin package does not include Metamod itself.</li>
+<li><strong>KHook</strong> — zlib license, as stated in
+<code>metamod-source/third_party/khook/include/khook.hpp</code>.</li>
+<li><strong>tinyformat</strong> — Boost Software License 1.0, stated in
+<code>src/vendor/tinyformat.h</code>; a copy is shipped as
+<code>licenses/Boost-Software-License-1.0.txt</code>.</li>
+<li><strong>Protocol Buffers 3.21.8</strong> — BSD 3-Clause license, from
+<code>hl2sdk-cs2/thirdparty/protobuf-3.21.8/LICENSE</code>; a copy is shipped as
+<code>licenses/Protocol-Buffers-BSD-3-Clause.txt</code>. The generated protocol code is
+built into the plugin.</li>
+<li><strong>PostgreSQL libpq</strong> — loaded from the server installation at runtime and
+not bundled by this project. PostgreSQL uses its permissive PostgreSQL
+License; follow the license for the installed client library distribution.</li>
+</ul>
+<h2 id="vendored-but-not-currently-built">Vendored but not currently built</h2>
+<ul>
+<li><strong>picosha2</strong> — MIT License, stated in <code>src/vendor/picosha2.h</code>.</li>
+<li><strong>miniz</strong> — its source contains permissive license notices and an Unlicense
+public-domain dedication. Preserve the notices in <code>src/vendor/miniz.c</code> and
+<code>src/vendor/miniz.h</code> if that code is used or redistributed.</li>
+</ul>
+<h2 id="sdk-and-reference-material">SDK and reference material</h2>
+<ul>
+<li><strong>HL2SDK for CS2</strong> — an external Git submodule used to build against the
+game's interfaces. It is not relicensed by this project. Review the
+applicable upstream and Valve terms for the SDK and for binaries built with
+it; this project does not package the SDK checkout.</li>
+<li><strong>SwiftParticleMenuDemo</strong> — reference material for the experimental particle
+menu. The <code>temp_swift_menu</code> checkout is no longer vendored in this repository
+(it was never part of the build or the server package); the attribution is
+kept so the record survives. Any redistribution of its contents must retain
+the upstream copyright and MIT license notice.</li>
+</ul>
+<p>The package staging step includes this file and the project's AGPL license.
+It also stages the license texts listed above. When adding a dependency,
+review its license before adoption and update this inventory and the packaged
+notices. The project's license cannot override upstream terms or the
+distribution rules of the game.</p>
+
+    </main>
+    <footer>CS2 Open World · AGPL-3.0-only</footer>
+</body>
+</html>

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="description" content="CS2 Open World Architecture — Runtime layers, modules, persistence and boundaries.">
+    <title>Создание карт — CS2 Open World</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="style.css">
+    <script defer src="script.js"></script>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23101312'/><rect x='6' y='6' width='20' height='20' rx='3' fill='none' stroke='%23b9ef71' stroke-width='2'/><path d='M10 16h12M16 10v12' stroke='%23b9ef71' stroke-width='2' stroke-linecap='round'/></svg>">
+</head>
+<body>
+    <header>
+        <a class="brand" href="index.html">CS2 <i>Open World</i></a>
+        <nav aria-label="Main navigation">
+            <a href="index.html" data-i18n="home">Home</a>
+            <a href="architecture.html" data-i18n="arch">Architecture</a>
+            <a href="setup.html" data-i18n="setup">Setup</a>
+            <a href="features.html" data-i18n="features">Features</a>
+            <a href="development.html" data-i18n="dev">Development</a>
+            <a href="specification.html" data-i18n="specNav">Specification</a>
+            <a href="map-authoring.html" data-i18n="mapNav">Map Authoring</a>
+        </nav>
+        <a class="repo-link" href="https://github.com/Artemon0/CS2-OpenWorld" target="_blank" rel="noopener" data-i18n="repoLink">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
+            GitHub
+        </a>
+        <button type="button" id="language-toggle" aria-label="Switch language">RU</button>
+    </header>
+    <main class="doc reference-doc">
+        <p class="reference-back"><a href="reference.html">← All documents / Все документы</a></p>
+        <div class="reference-source">MAP_AUTHORING.ru.md</div>
+<h1 id="что-можно-добавить-вручную-на-карту">Что можно добавить вручную на карту</h1>
+<p>Английская версия: <a href="reference-maps.html">MAP_AUTHORING.md</a>.</p>
+<p>Этот файл — практический список того, что автор карты может сделать в Hammer и Workshop Tools без изменения движка. Он относится к будущей карте OpenWorld и не предполагает, что карта уже существует.</p>
+<h2 id="1-порталы-между-серверами">1. Порталы между серверами</h2>
+<p>На карте можно вручную оформить переход как заметную арку, дверь, лифт, тоннель, транспортную станцию или табличку. Рядом разместите название места назначения и подсказку:</p>
+<pre><code class="language-text">Переход в Восточный район
+Напишите в чат: !go east
+</code></pre>
+<p>Команда <code>!go &lt;server_id&gt;</code> уже подключена к плагину. Она перенаправляет Steam-аутентифицированного игрока на адрес сервера, указанный в <code>configs/openworld.ini</code>. Допустимый <code>server_id</code> задаётся секцией <code>[servers.&lt;server_id&gt;]</code>.</p>
+<p><strong>Ограничение:</strong> сама геометрия портала и <code>trigger_multiple</code> не запускают переход автоматически. Пока игрок сам пишет команду в чат; распознавание входа в триггер и автоматический transfer ещё не реализованы.</p>
+<h2 id="2-что-настроить-в-openworldini">2. Что настроить в <code>openworld.ini</code></h2>
+<p>Для каждого игрового процесса задайте свой <code>core.server_id</code>. В список серверов добавьте id, клиентский адрес с портом и карту:</p>
+<pre><code class="language-ini">[core]
+server_id = west
+environment = development
+
+[servers.west]
+connect = 203.0.113.10:27015
+map = ow_west
+max_players = 32
+
+[servers.east]
+connect = 203.0.113.10:27016
+map = ow_east
+max_players = 32
+</code></pre>
+<p>Оставьте в полном конфиге обязательные <code>[persistence]</code>, <code>[cache]</code> и <code>[zones.*]</code>. На каждом сервере должен быть одинаковый список destination-серверов, но <code>core.server_id</code> должен соответствовать именно этому экземпляру. <code>connect</code> — публичный адрес игрового сервера, доступный компьютеру игрока; для нескольких серверов проверьте проброс и firewall для каждого игрового порта.</p>
+<p>После перезапуска плагина игрок на <code>west</code> проверяет переход командой:</p>
+<pre><code class="language-text">!go east
+</code></pre>
+<p>Это переподключение клиента через <code>connect</code>, не seamless transfer. Сейчас оно не переносит гарантированно позицию, оружие, здоровье или состояние персонажа и не выполняет автоматическое сохранение перед уходом.</p>
+<h2 id="3-сборка-карты-уменьшаем-число-runtime-сущностей">3. Сборка карты: уменьшаем число runtime-сущностей</h2>
+<ul>
+<li>Статические стены, дороги, здания и ландшафт собирайте в подходящие меши и компилируйте в геометрию карты.</li>
+<li>Для неподвижного декора используйте <code>prop_static</code>; проверьте <code>Force Bake To World</code> (<code>baketoworld</code>), если объект можно слить с world geometry. Это вариант для объектов, которым не нужны анимация, физика и взаимодействие.</li>
+<li>Оставляйте <code>prop_dynamic</code>, физические props и интерактивные entity только там, где их поведение действительно нужно.</li>
+<li>Не отключайте объединение мешей без причины; проверяйте визуальное качество, освещение, collision и производительность после bake/compile.</li>
+<li>Сохраняйте запас runtime entity slots: значение <code>MAX_TOTAL_ENTITIES</code> в SDK — ёмкость индексов, не рекомендуемый бюджет карты.</li>
+<li>Большой игровой мир планируйте как несколько карт-сегментов в допустимых границах Source 2. Визуальные эффекты не заменяют streaming и не увеличивают entity limits.</li>
+</ul>
+<h2 id="4-что-ещё-можно-подготовить-в-hammerworkshop">4. Что ещё можно подготовить в Hammer/Workshop</h2>
+<p>Это контентная работа, не функции, которые плагин уже выполняет автоматически:</p>
+<ul>
+<li><strong>Точки появления:</strong> заранее выбрать безопасные spawn locations для каждого сервера/сектора и не размещать их внутри геометрии.</li>
+<li><strong>Переходные зоны:</strong> оформить порталами, дверями, маркерами, освещением, signage и понятной подсказкой команды назначения.</li>
+<li><strong>Навигация:</strong> сделать дорожные указатели, названия районов, карту/легенду и визуальные landmark-объекты, чтобы игроки ориентировались без автоматического GPS.</li>
+<li><strong>Коллизии:</strong> проверить проходы, ступени, склоны, дверные проёмы и границы, чтобы игроки не застревали и не выпадали за карту.</li>
+<li><strong>Видимость:</strong> использовать геометрию, закрывающую дальний обзор, тоннели, повороты, внутренние пространства и естественные линии горизонта. Это обычная геометрия уровня, не скрытие данных на клиенте.</li>
+<li><strong>Свет и окружение:</strong> настроить освещение и sky средствами карты. Визуальные эффекты не скрывают сетевые данные и не подгружают части карты.</li>
+<li><strong>Workshop-пакеты:</strong> разнести карту и общие ресурсы по понятным пакетам; проверить загрузку ресурсов на чистом клиенте, не имеющем исходников проекта.</li>
+<li><strong>Тестовая карта:</strong> сначала собрать маленький вертикальный срез: spawn, короткий маршрут, портал-маркер и переход на второй сервер. На нём проверить обе стороны connect, карту и фактическую доступность портов.</li>
+</ul>
+<h2 id="5-что-пока-требует-реализации-в-плагине">5. Что пока требует реализации в плагине</h2>
+<p>Следующие вещи нельзя получить одним размещением сущностей в Hammer:</p>
+<ol>
+<li>Запуск <code>!go</code> при входе игрока в trigger и защита от многократного срабатывания.</li>
+<li>Проверка доступности и свободного места на destination-сервере перед redirect.</li>
+<li>Сохранение transfer snapshot в PostgreSQL, одноразовый билет, резервирование игрока и восстановление состояния на целевом сервере.</li>
+<li>Выбор безопасной точки появления на destination-карте и преобразование координат между секторами.</li>
+<li>Автоматический выбор целевого сервера по координатам или переходной зоне.</li>
+<li>Seamless-переход без отключения и повторного подключения.</li>
+</ol>
+<p>Не делайте вывод, что эти возможности уже есть, только потому что карта содержит trigger, зону в конфиге или таблицу PostgreSQL. На текущем этапе рабочий вариант перехода — ручная команда <code>!go &lt;server_id&gt;</code> и обычный client reconnect.</p>
+
+    </main>
+    <footer>CS2 Open World · AGPL-3.0-only</footer>
+</body>
+</html>

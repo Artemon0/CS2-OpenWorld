@@ -1,1 +1,87 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Architecture — CS2 Open World</title><link rel="stylesheet" href="style.css"><script defer src="script.js"></script></head><body><header><a class="brand" href="index.html">CS2 <i>Open World</i></a><nav><a href="index.html" data-i18n="home">Home</a><a href="architecture.html" data-i18n="arch">Architecture</a><a href="setup.html" data-i18n="setup">Setup</a><a href="features.html" data-i18n="features">Features</a><a href="development.html" data-i18n="dev">Development</a></nav><a class="repo-link" href="https://github.com/Artemon0/CS2-OpenWorld" target="_blank" rel="noopener" data-i18n="repoLink">GitHub ↗</a><button id="language-toggle">RU</button></header><main class="doc"><label data-i18n="archEy">SYSTEM DESIGN</label><h1 data-i18n="archTitle">Architecture</h1><p class="lead" data-i18n="archIntro">Gameplay rules stay on the server; engine integration, gameplay modules and persistence are separated.</p><div class="diagram"><div>Counter-Strike 2<br>↓<br>Metamod:Source · HL2SDK<br>↓<br><strong>OW Core</strong><br><small>lifecycle · modules · events · services · config</small></div><div class="row"><div>Gameplay modules<br><small>characters · transfer · inventory · economy</small></div><div>Adapters<br><small>PostgreSQL · text UI · input · CS2</small></div></div></div><h2 data-i18n="layers">Runtime layers</h2><p data-i18n="layersD">The Metamod plugin entry initializes OW Core. ModuleManager starts configured modules; the event bus carries typed lifecycle events, while the service registry exposes versioned interfaces. Adapters isolate engine and database details from gameplay code.</p><ul><li><code>src/core/</code> — plugin lifecycle, module manager, event bus, service registry, cluster config.</li><li><code>src/modules/</code> — core, character, transfer, inventory and economy.</li><li><code>src/adapters/</code> — CS2 redirection, PostgreSQL and text output.</li><li><code>src/ui/</code> — UI routing, text HUD, input and experimental particle menus.</li></ul><h2 data-i18n="authority">Server authority & sessions</h2><p data-i18n="authorityD">Steam identity is trusted only after engine authorization. Client input is a request; the server validates ownership and state. Async database results are applied on the game thread only if the originating player session is still current.</p><h2 data-i18n="persistence">Persistence & cluster routing</h2><p data-i18n="persistD">PostgreSQL is the source of truth. A bounded local cache is used only for player settings. Cluster routing assigns authenticated players and saves route changes before redirecting. Redirect means reconnect; live state and position do not migrate.</p><h2 data-i18n="boundaries">Boundaries</h2><p data-i18n="boundaryD">The server-only UI adapter sends text and notifications; it cannot open arbitrary Panorama panels. Particle UI is experimental and off by default. Read <a href="features.html">feature status</a>, <a href="setup.html">setup</a>, or the source <a href="https://github.com/Artemon0/CS2-OpenWorld/blob/main/ARCHITECTURE.md">architecture overview</a>.</p></main><footer>CS2 Open World · AGPL-3.0-only</footer></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="description" content="CS2 Open World Architecture — Runtime layers, modules, persistence and boundaries.">
+    <title>Architecture — CS2 Open World</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="style.css">
+    <script defer src="script.js"></script>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23101312'/><rect x='6' y='6' width='20' height='20' rx='3' fill='none' stroke='%23b9ef71' stroke-width='2'/><path d='M10 16h12M16 10v12' stroke='%23b9ef71' stroke-width='2' stroke-linecap='round'/></svg>">
+</head>
+<body>
+    <header>
+        <a class="brand" href="index.html">CS2 <i>Open World</i></a>
+        <nav aria-label="Main navigation">
+            <a href="index.html" data-i18n="home">Home</a>
+            <a href="architecture.html" data-i18n="arch">Architecture</a>
+            <a href="setup.html" data-i18n="setup">Setup</a>
+            <a href="features.html" data-i18n="features">Features</a>
+            <a href="development.html" data-i18n="dev">Development</a>
+            <a href="specification.html" data-i18n="specNav">Specification</a>
+            <a href="map-authoring.html" data-i18n="mapNav">Map Authoring</a>
+        </nav>
+        <a class="repo-link" href="https://github.com/Artemon0/CS2-OpenWorld" target="_blank" rel="noopener" data-i18n="repoLink">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
+            GitHub
+        </a>
+        <button type="button" id="language-toggle" aria-label="Switch language">RU</button>
+    </header>
+    <main class="doc">
+        <label data-i18n="archEy">SYSTEM DESIGN</label>
+        <h1 data-i18n="archTitle">Architecture</h1>
+        <p class="lead" data-i18n="archIntro">Gameplay rules stay on the server; engine integration, gameplay modules and persistence are separated.</p>
+
+        <div class="diagram" aria-label="Architecture diagram">
+            <div class="arch-diagram">
+                <div class="arch-layer">
+                    <strong>Counter-Strike 2</strong>
+                    <small>Game server process</small>
+                </div>
+                <div class="arch-arrow" aria-hidden="true">▼</div>
+                <div class="arch-layer">
+                    <strong>Metamod:Source &middot; HL2SDK</strong>
+                    <small>Plugin interface & engine bindings</small>
+                </div>
+                <div class="arch-arrow" aria-hidden="true">▼</div>
+                <div class="arch-layer core">
+                    <strong>OW Core</strong>
+                    <small>lifecycle &middot; modules &middot; events &middot; services &middot; config</small>
+                </div>
+                <div class="arch-row">
+                    <div class="arch-layer">
+                        <strong>Gameplay Modules</strong>
+                        <small>characters &middot; transfer &middot; inventory &middot; economy</small>
+                    </div>
+                    <div class="arch-layer">
+                        <strong>Adapters</strong>
+                        <small>PostgreSQL &middot; text UI &middot; input &middot; CS2</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <h2 data-i18n="layers">Runtime layers</h2>
+        <p data-i18n="layersD">The Metamod plugin entry initializes OW Core. ModuleManager starts configured modules; the event bus carries typed lifecycle events, while the service registry exposes versioned interfaces. Adapters isolate engine and database details from gameplay code.</p>
+        <ul>
+            <li><code>src/core/</code> — plugin lifecycle, module manager, event bus, service registry, cluster config.</li>
+            <li><code>src/modules/</code> — core, character, transfer, inventory and economy.</li>
+            <li><code>src/adapters/</code> — CS2 redirection, PostgreSQL and text output.</li>
+            <li><code>src/ui/</code> — UI routing, text HUD, input and experimental particle menus.</li>
+        </ul>
+
+        <h2 data-i18n="authority">Server authority & sessions</h2>
+        <p data-i18n="authorityD">Steam identity is trusted only after engine authorization. Client input is a request; the server validates ownership and state. Async database results are applied on the game thread only if the originating player session is still current.</p>
+
+        <h2 data-i18n="persistence">Persistence & cluster routing</h2>
+        <p data-i18n="persistD">PostgreSQL is the source of truth. A bounded local cache is used only for player settings. Cluster routing assigns authenticated players and saves route changes before redirecting. Redirect means reconnect; live state and position do not migrate.</p>
+
+        <h2 data-i18n="boundaries">Boundaries</h2>
+        <p data-i18n="boundaryD">The server-only UI adapter sends text and notifications; it cannot open arbitrary Panorama panels. Particle UI is experimental and off by default. Read <a href="features.html">feature status</a>, <a href="setup.html">setup</a>, or the source <a href="https://github.com/Artemon0/CS2-OpenWorld/blob/main/ARCHITECTURE.md">architecture overview</a>.</p>
+        <aside><b>Полная версия документа / Full document</b><a href="reference-architecture.html">Открыть документ →</a> · <a href="reference.html">Все документы</a></aside>
+    </main>
+    <footer>CS2 Open World · AGPL-3.0-only</footer>
+</body>
+</html>

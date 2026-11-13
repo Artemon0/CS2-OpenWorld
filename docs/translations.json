@@ -84,7 +84,11 @@
     "verifyD": "Follow <a href=\"setup.html\">build instructions</a>. Before release, verify gamedata against target server binaries with <code>tools/update_offsets.py</code>. See <a href=\"https://github.com/Artemon0/CS2-OpenWorld/blob/main/tests/unit/README.md\">unit tests</a> and <a href=\"https://github.com/Artemon0/CS2-OpenWorld/blob/main/tests/integration/README.md\">integration tests</a>.",
     "roadmap": "Roadmap & design",
     "roadmapD": "Known gaps and planned modules live in <a href=\"https://github.com/Artemon0/CS2-OpenWorld/blob/main/docs/ROADMAP.md\">ROADMAP.md</a>. Read the <a href=\"https://github.com/Artemon0/CS2-OpenWorld/blob/main/ARCHITECTURE.md\">architecture overview</a> and <a href=\"https://github.com/Artemon0/CS2-OpenWorld/blob/main/CS2%20Open%20World.ru.md\">full Russian specification</a>.",
-    "repoLink": "GitHub ↗"
+    "repoLink": "GitHub ↗",
+    "readMore": "Read more →",
+    "specNav": "Specification",
+    "mapNav": "Map authoring",
+    "allDocs": "All documents"
   },
   "ru": {
     "home": "Главная",
@@ -171,6 +175,10 @@
     "verifyD": "Следуйте <a href=\"setup.html\">инструкции по сборке</a>. Перед выпуском сверяйте gamedata с бинарными файлами сервера через <code>tools/update_offsets.py</code>. См. <a href=\"https://github.com/Artemon0/CS2-OpenWorld/blob/main/tests/unit/README.md\">модульные тесты</a> и <a href=\"https://github.com/Artemon0/CS2-OpenWorld/blob/main/tests/integration/README.md\">интеграционные тесты</a>.",
     "roadmap": "План и дизайн",
     "roadmapD": "Известные пробелы и планируемые модули описаны в <a href=\"https://github.com/Artemon0/CS2-OpenWorld/blob/main/docs/ROADMAP.md\">ROADMAP.md</a>. Читайте <a href=\"https://github.com/Artemon0/CS2-OpenWorld/blob/main/ARCHITECTURE.md\">обзор архитектуры</a> и <a href=\"https://github.com/Artemon0/CS2-OpenWorld/blob/main/CS2%20Open%20World.ru.md\">полную спецификацию на русском</a>.",
-    "repoLink": "GitHub ↗"
+    "repoLink": "GitHub ↗",
+    "readMore": "Подробнее →",
+    "specNav": "Спецификация",
+    "mapNav": "Создание карт",
+    "allDocs": "Все документы"
   }
 }

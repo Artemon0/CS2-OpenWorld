@@ -1,6 +1,6 @@
 ﻿# CS2 Open World
 
-> KNOW, ITS LIKE 60% AI GENERATED (or more)
+> KNOW, ITS LIKE AI GENERATED
 
 CS2 Open World is a Counter-Strike 2 server plugin built with C++, Metamod:Source, and hl2sdk-cs2. The plugin entry point and initial OW Core live in src/core/; gameplay and infrastructure components are organized under src/adapters/, src/modules/, and src/ui/; planned modules and services are listed in [docs/ROADMAP.md](./docs/ROADMAP.md).
 

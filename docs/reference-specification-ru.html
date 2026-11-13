@@ -1,0 +1,1936 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="description" content="CS2 Open World Architecture — Runtime layers, modules, persistence and boundaries.">
+    <title>Архитектурная спецификация — CS2 Open World</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="style.css">
+    <script defer src="script.js"></script>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23101312'/><rect x='6' y='6' width='20' height='20' rx='3' fill='none' stroke='%23b9ef71' stroke-width='2'/><path d='M10 16h12M16 10v12' stroke='%23b9ef71' stroke-width='2' stroke-linecap='round'/></svg>">
+</head>
+<body>
+    <header>
+        <a class="brand" href="index.html">CS2 <i>Open World</i></a>
+        <nav aria-label="Main navigation">
+            <a href="index.html" data-i18n="home">Home</a>
+            <a href="architecture.html" data-i18n="arch">Architecture</a>
+            <a href="setup.html" data-i18n="setup">Setup</a>
+            <a href="features.html" data-i18n="features">Features</a>
+            <a href="development.html" data-i18n="dev">Development</a>
+            <a href="specification.html" data-i18n="specNav">Specification</a>
+            <a href="map-authoring.html" data-i18n="mapNav">Map Authoring</a>
+        </nav>
+        <a class="repo-link" href="https://github.com/Artemon0/CS2-OpenWorld" target="_blank" rel="noopener" data-i18n="repoLink">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
+            GitHub
+        </a>
+        <button type="button" id="language-toggle" aria-label="Switch language">RU</button>
+    </header>
+    <main class="doc reference-doc">
+        <p class="reference-back"><a href="reference.html">← All documents / Все документы</a></p>
+        <div class="reference-source">CS2 Open World.ru.md</div>
+<h1 id="cs2-open-world">CS2 OPEN WORLD</h1>
+<h2 id="архитектурная-спецификация">Архитектурная спецификация</h2>
+<p>Краткий обзор на английском: <a href="reference-architecture.html">ARCHITECTURE.md</a>.
+<strong>Версия:</strong> 0.1<br>
+<strong>Статус:</strong> проектирование<br>
+<strong>Основная платформа:</strong> Counter-Strike 2<br>
+<strong>Основной язык:</strong> C++<br>
+<strong>Основной загрузчик:</strong> Metamod:Source<br>
+<strong>Основной SDK:</strong> hl2sdk-cs2<br>
+<strong>Архитектура:</strong> единое ядро + подключаемые модули + общие сервисы</p>
+<hr>
+<h1 id="часть-i-концепция-проекта">ЧАСТЬ I. КОНЦЕПЦИЯ ПРОЕКТА</h1>
+<h2 id="1-назначение">1. Назначение</h2>
+<p>CS2 Open World — многопользовательский серверный проект на Counter-Strike 2, создающий платформу открытого мира с ролевыми игровыми системами.</p>
+<p>Проект должен поддерживать:</p>
+<ol>
+<li>Большой игровой мир, разделённый на отдельные секторы.</li>
+<li>Несколько серверов CS2, совместно обслуживающих этот мир.</li>
+<li>Переходы игроков между секторами.</li>
+<li>Сохранение состояния игроков.</li>
+<li>Собственный интерфейс.</li>
+<li>NPC и диалоги.</li>
+<li>Задания.</li>
+<li>Транспорт.</li>
+<li>Экономику.</li>
+<li>Инвентарь.</li>
+<li>Взаимодействие игроков.</li>
+<li>Возможность создавать разные игровые режимы.</li>
+<li>Подключаемые игровые модули.</li>
+<li>Размещение нескольких серверов на одной машине.</li>
+<li>Возможность горизонтального масштабирования на несколько машин.</li>
+</ol>
+<p>Проект изначально ориентирован на мультиплеер.</p>
+<p>Однопользовательский режим не является обязательным, но архитектура не должна препятствовать запуску мира с одним игроком.</p>
+<h2 id="2-главные-принципы">2. Главные принципы</h2>
+<h3 id="21-модульность">2.1. Модульность</h3>
+<p>Каждая подсистема имеет чёткую ответственность.</p>
+<p>Например:</p>
+<ul>
+<li>Inventory отвечает за предметы.</li>
+<li>Economy отвечает за денежные операции.</li>
+<li>NPC отвечает за NPC.</li>
+<li>Dialog отвечает за разговоры.</li>
+<li>UI отвечает за отображение интерфейсов.</li>
+</ul>
+<p>Модули не должны напрямую вмешиваться во внутреннее состояние друг друга.</p>
+<h3 id="22-расширяемость">2.2. Расширяемость</h3>
+<p>Разработчик должен иметь возможность:</p>
+<ul>
+<li>подключить новый модуль;</li>
+<li>отключить необязательный модуль;</li>
+<li>заменить реализацию модуля;</li>
+<li>добавить новый игровой режим;</li>
+<li>добавить новый интерфейс;</li>
+<li>расширить систему NPC;</li>
+<li>создать собственные задания.</li>
+</ul>
+<h3 id="23-авторитетность-сервера">2.3. Авторитетность сервера</h3>
+<p>Сервер определяет игровое состояние.</p>
+<p>Клиент может отправлять действия и получать результаты, но не должен самостоятельно назначать себе деньги, предметы, здоровье или завершённые задания.</p>
+<h3 id="24-независимость-от-способа-отображения">2.4. Независимость от способа отображения</h3>
+<p>Игровая логика не должна зависеть от конкретной технологии интерфейса.</p>
+<p>Например, Dialog System не должна знать, используется ли:</p>
+<ul>
+<li>particle-меню;</li>
+<li>Panorama;</li>
+<li>встроенное меню;</li>
+<li>другой механизм отображения.</li>
+</ul>
+<h3 id="25-независимость-от-базы-данных">2.5. Независимость от базы данных</h3>
+<p>Игровые модули не должны напрямую выполнять SQL-запросы.</p>
+<p>Доступ к данным осуществляется через Persistence и специализированные репозитории.</p>
+<h3 id="26-безопасность-времени-жизни-объектов">2.6. Безопасность времени жизни объектов</h3>
+<p>Указатели на сущности движка не должны храниться без учёта их жизненного цикла.</p>
+<p>В долгоживущем состоянии предпочтительно хранить стабильные идентификаторы и проверяемые дескрипторы, а не необработанные указатели.</p>
+<hr>
+<h1 id="часть-ii-общая-архитектура">ЧАСТЬ II. ОБЩАЯ АРХИТЕКТУРА</h1>
+<h2 id="3-уровни-системы">3. Уровни системы</h2>
+<pre><code class="language-text">┌─────────────────────────────────────────────────────────┐
+│                    КЛИЕНТ CS2                          │
+│                                                         │
+│  Стандартный HUD / Particle UI / Custom UI / Workshop   │
+└───────────────────────────┬─────────────────────────────┘
+                            │
+                    Игровое соединение
+                            │
+┌───────────────────────────▼─────────────────────────────┐
+│                    СЕРВЕР CS2                          │
+│                                                         │
+│  ┌───────────────────────────────────────────────────┐  │
+│  │                METAMOD:SOURCE                     │  │
+│  │                                                   │  │
+│  │  ┌─────────────────────────────────────────────┐  │  │
+│  │  │                  OW CORE                    │  │  │
+│  │  │                                             │  │  │
+│  │  │  Module Manager       Event Bus             │  │  │
+│  │  │  Player Sessions      Service Registry      │  │  │
+│  │  │  Engine Adapter       Configuration         │  │  │
+│  │  │  Lifecycle Manager    Diagnostics           │  │  │
+│  │  └──────────────────────┬──────────────────────┘  │  │
+│  │                         │                         │  │
+│  │  ┌──────────────────────▼──────────────────────┐  │  │
+│  │  │              GAMEPLAY MODULES               │  │  │
+│  │  │                                             │  │  │
+│  │  │  NPC         Dialog       Quests            │  │  │
+│  │  │  Inventory   Economy      Vehicles          │  │  │
+│  │  │  Health      Weapons      Interactions      │  │  │
+│  │  │  Audio       World        UI                │  │  │
+│  │  └─────────────────────────────────────────────┘  │  │
+│  └───────────────────────────────────────────────────┘  │
+└───────────────────────────┬─────────────────────────────┘
+                            │
+                    Межсерверный протокол
+                            │
+┌───────────────────────────▼─────────────────────────────┐
+│                    ОБЩИЕ СЕРВИСЫ                       │
+│                                                         │
+│  Coordinator     Transfer Service     Identity Service  │
+│                                                         │
+│  PostgreSQL      Message Transport    Monitoring        │
+└─────────────────────────────────────────────────────────┘
+</code></pre>
+<h2 id="4-физическое-размещение">4. Физическое размещение</h2>
+<p>Один компьютер может запускать несколько игровых серверов.</p>
+<pre><code class="language-text">                 ОДИН ФИЗИЧЕСКИЙ КОМПЬЮТЕР
+┌──────────────────────────────────────────────────────────┐
+│                                                          │
+│  CS2 Server A                  CS2 Server B               │
+│  Port A                        Port B                     │
+│  Sector: Downtown              Sector: Industrial        │
+│       │                              │                    │
+│       └──────────────┬───────────────┘                    │
+│                      │                                    │
+│  CS2 Server C        │                                    │
+│  Sector: Airport     │                                    │
+│       │              │                                    │
+│       └──────────────┤                                    │
+│                      │                                    │
+│                Coordinator                               │
+│                      │                                    │
+│                PostgreSQL                                │
+│                      │                                    │
+│                 Monitoring                               │
+│                                                          │
+└──────────────────────────────────────────────────────────┘
+</code></pre>
+<p>Каждый сервер CS2 является отдельным процессом.</p>
+<p>У каждого процесса собственные:</p>
+<ul>
+<li>память;</li>
+<li>игровой мир;</li>
+<li>сущности;</li>
+<li>игровые соединения;</li>
+<li>экземпляр OW Core;</li>
+<li>экземпляры игровых модулей.</li>
+</ul>
+<p>Общими являются только данные и сервисы, доступ к которым организован явно.</p>
+<h3 id="ограничения">Ограничения</h3>
+<p>Несколько процессов на одной машине не означают общего использования одной копии игровых ресурсов в памяти.</p>
+<p>Операционная система может совместно использовать некоторые страницы памяти, но значительная часть состояния каждого сервера остаётся отдельной.</p>
+<p>Количество одновременно работающих серверов необходимо определять нагрузочным тестированием.</p>
+<hr>
+<h1 id="часть-iii-ow-core">ЧАСТЬ III. OW CORE</h1>
+<h2 id="5-назначение-ядра">5. Назначение ядра</h2>
+<p>OW Core — центральный компонент серверного плагина.</p>
+<p>Он должен:</p>
+<ol>
+<li>Инициализировать модификацию.</li>
+<li>Подключаться к возможностям движка через адаптеры.</li>
+<li>Управлять жизненным циклом модулей.</li>
+<li>Предоставлять общие интерфейсы.</li>
+<li>Организовывать обмен событиями.</li>
+<li>Управлять игровыми сессиями.</li>
+<li>Обеспечивать доступ к общим сервисам.</li>
+<li>Управлять конфигурацией.</li>
+<li>Контролировать завершение работы.</li>
+<li>Предоставлять диагностику.</li>
+</ol>
+<p>Ядро не должно самостоятельно реализовывать всю игровую логику.</p>
+<h2 id="6-module-manager">6. Module Manager</h2>
+<h3 id="назначение">Назначение</h3>
+<p>Управление подключаемыми модулями.</p>
+<h3 id="основные-операции">Основные операции</h3>
+<p><strong>DiscoverModules</strong></p>
+<p>Находит доступные модули в разрешённых каталогах.</p>
+<p><strong>ReadModuleManifest</strong></p>
+<p>Читает описание модуля:</p>
+<ul>
+<li>идентификатор;</li>
+<li>версию;</li>
+<li>версию API ядра;</li>
+<li>зависимости;</li>
+<li>обязательные сервисы;</li>
+<li>настройки;</li>
+<li>поддерживаемые платформы.</li>
+</ul>
+<p><strong>ResolveDependencies</strong></p>
+<p>Строит граф зависимостей.</p>
+<p>Обнаруживает:</p>
+<ul>
+<li>отсутствующие зависимости;</li>
+<li>несовместимые версии;</li>
+<li>циклические зависимости.</li>
+</ul>
+<p><strong>LoadModule</strong></p>
+<p>Загружает модуль и проверяет совместимость.</p>
+<p><strong>InitializeModule</strong></p>
+<p>Передаёт модулю доступ к разрешённым сервисам.</p>
+<p><strong>StartModule</strong></p>
+<p>Переводит модуль в рабочее состояние.</p>
+<p><strong>StopModule</strong></p>
+<p>Запрещает новые операции и начинает остановку.</p>
+<p><strong>UnloadModule</strong></p>
+<p>Освобождает ресурсы модуля после безопасного завершения.</p>
+<p><strong>GetModuleStatus</strong></p>
+<p>Возвращает текущее состояние модуля.</p>
+<h3 id="состояния">Состояния</h3>
+<pre><code class="language-text">DISCOVERED
+    │
+    ▼
+VALIDATED
+    │
+    ▼
+LOADED
+    │
+    ▼
+INITIALIZED
+    │
+    ▼
+RUNNING
+    │
+    ▼
+STOPPING
+    │
+    ▼
+STOPPED
+    │
+    ▼
+UNLOADED
+</code></pre>
+<p>При ошибке модуль переходит в состояние FAILED.</p>
+<h3 id="правила">Правила</h3>
+<p>Обязательные модули нельзя отключать, если это нарушит работоспособность ядра.</p>
+<p>Необязательные модули могут отсутствовать.</p>
+<p>Выгрузка модуля во время игры допускается только при наличии подтверждённого безопасного механизма.</p>
+<p>В первой версии допускается отключение модулей через конфигурацию с последующим перезапуском сервера.</p>
+<hr>
+<h2 id="7-service-registry">7. Service Registry</h2>
+<h3 id="назначение-1">Назначение</h3>
+<p>Предоставление интерфейсов между модулями.</p>
+<p>Пример:</p>
+<pre><code class="language-text">Inventory Module
+       │
+       │ Регистрирует IInventoryService
+       ▼
+Service Registry
+       ▲
+       │ Запрашивает IInventoryService
+       │
+Quest Module
+</code></pre>
+<p>Quest Module не должен знать, где находится реализация Inventory.</p>
+<h3 id="основные-операции-1">Основные операции</h3>
+<ul>
+<li>RegisterService</li>
+<li>UnregisterService</li>
+<li>GetService</li>
+<li>HasService</li>
+<li>ValidateServiceVersion</li>
+</ul>
+<h3 id="правила-1">Правила</h3>
+<p>Интерфейсы должны иметь версии.</p>
+<p>Модуль не должен использовать сервис после его остановки.</p>
+<p>При выгрузке поставщика сервиса зависимые модули должны быть остановлены либо переведены в предусмотренный безопасный режим.</p>
+<hr>
+<h2 id="8-event-bus">8. Event Bus</h2>
+<h3 id="назначение-2">Назначение</h3>
+<p>Локальная передача событий между модулями одного процесса.</p>
+<h3 id="примеры-событий">Примеры событий</h3>
+<pre><code class="language-text">Player.Connected
+Player.Disconnected
+
+Player.Damaged
+Player.Died
+
+NPC.Spawned
+NPC.Interacted
+
+Inventory.ItemAdded
+Inventory.ItemRemoved
+
+Quest.Started
+Quest.Completed
+
+Vehicle.Entered
+Vehicle.Exited
+
+Transfer.Started
+Transfer.Completed
+Transfer.Failed
+</code></pre>
+<h3 id="основные-операции-2">Основные операции</h3>
+<ul>
+<li>Subscribe</li>
+<li>Unsubscribe</li>
+<li>Publish</li>
+<li>RegisterEventType</li>
+<li>DispatchPendingEvents</li>
+</ul>
+<h3 id="важное-различие">Важное различие</h3>
+<p><strong>Событие</strong> сообщает о произошедшем факте.</p>
+<p><strong>Команда</strong> запрашивает выполнение действия.</p>
+<p><strong>Запрос</strong> получает информацию или результат.</p>
+<p>Например:</p>
+<pre><code class="language-text">Command:
+Inventory.AddItem
+
+Event:
+Inventory.ItemAdded
+
+Query:
+Inventory.GetItems
+</code></pre>
+<p>Не следует превращать все взаимодействия в события.</p>
+<h3 id="правила-2">Правила</h3>
+<p>Event Bus внутри сервера не равен межсерверной системе сообщений.</p>
+<p>События должны иметь определённый порядок обработки там, где он необходим.</p>
+<p>Необходимо ограничить рекурсивную публикацию событий и бесконечные циклы между подписчиками.</p>
+<hr>
+<h2 id="9-engine-adapter">9. Engine Adapter</h2>
+<h3 id="назначение-3">Назначение</h3>
+<p>Изолировать остальную систему от конкретных интерфейсов CS2.</p>
+<pre><code class="language-text">             Gameplay Modules
+                    │
+                    ▼
+               OW Engine API
+                    │
+                    ▼
+               Engine Adapter
+                    │
+          ┌─────────┴─────────┐
+          │                   │
+     Metamod Hooks       hl2sdk-cs2
+          │                   │
+          └─────────┬─────────┘
+                    │
+                 CS2 Engine
+</code></pre>
+<h3 id="основные-операции-3">Основные операции</h3>
+<ul>
+<li>FindPlayerEntity</li>
+<li>ResolveEntityHandle</li>
+<li>GetEntityPosition</li>
+<li>SetEntityPosition</li>
+<li>SpawnSupportedEntity</li>
+<li>RemoveEntity</li>
+<li>RegisterGameEvent</li>
+<li>RegisterHook</li>
+<li>UnregisterHook</li>
+<li>ScheduleGameThreadTask</li>
+</ul>
+<p>Это проектируемые абстракции, а не подтверждённые названия функций SDK.</p>
+<h3 id="правила-3">Правила</h3>
+<p>Модули не должны самостоятельно хранить адреса внутренних функций движка.</p>
+<p>Работа с хуками централизуется через Engine Adapter или специализированные адаптеры.</p>
+<p>Все операции должны учитывать требования игрового потока.</p>
+<p>Изменения движка после обновлений CS2 должны по возможности затрагивать адаптеры, а не всю систему.</p>
+<hr>
+<h1 id="часть-iv-игроки-и-сессии">ЧАСТЬ IV. ИГРОКИ И СЕССИИ</h1>
+<h2 id="10-player-manager">10. Player Manager</h2>
+<h3 id="назначение-4">Назначение</h3>
+<p>Управление подключениями игроков.</p>
+<h3 id="основные-операции-4">Основные операции</h3>
+<p><strong>OnPlayerConnecting</strong></p>
+<p>Начинает обработку подключения.</p>
+<p><strong>AuthenticatePlayer</strong></p>
+<p>Связывает подключение с подтверждённой идентичностью игрока.</p>
+<p><strong>CreateSession</strong></p>
+<p>Создаёт игровую сессию.</p>
+<p><strong>RestorePlayerState</strong></p>
+<p>Восстанавливает сохранённое состояние.</p>
+<p><strong>GetPlayerSession</strong></p>
+<p>Получает текущую сессию.</p>
+<p><strong>OnPlayerDisconnected</strong></p>
+<p>Обрабатывает отключение.</p>
+<p><strong>CloseSession</strong></p>
+<p>Завершает сессию и освобождает связанные ресурсы.</p>
+<h3 id="данные-сессии">Данные сессии</h3>
+<pre><code class="language-text">PlayerSession
+├── PlayerId
+├── SessionId
+├── ServerId
+├── ConnectionState
+├── CharacterId
+├── CurrentSector
+├── CurrentPosition
+├── ActiveTransferId
+└── SessionGeneration
+</code></pre>
+<p>PlayerId и SessionId — разные сущности.</p>
+<p>PlayerId идентифицирует игрока.</p>
+<p>SessionId идентифицирует конкретную игровую сессию.</p>
+<h3 id="важное-правило">Важное правило</h3>
+<p>У одного игрока не должно быть двух одновременно авторитетных игровых сессий.</p>
+<p>При повторном подключении устаревшая сессия должна быть корректно обработана.</p>
+<hr>
+<h2 id="11-character-system">11. Character System</h2>
+<h3 id="назначение-5">Назначение</h3>
+<p>Управление игровыми персонажами.</p>
+<p>Один аккаунт потенциально может иметь несколько персонажей.</p>
+<h3 id="основные-операции-5">Основные операции</h3>
+<ul>
+<li>CreateCharacter</li>
+<li>DeleteCharacter</li>
+<li>SelectCharacter</li>
+<li>LoadCharacter</li>
+<li>SaveCharacter</li>
+<li>UpdateCharacterProfile</li>
+<li>GetCharacterState</li>
+</ul>
+<h3 id="состояние-персонажа">Состояние персонажа</h3>
+<ul>
+<li>идентификатор;</li>
+<li>имя;</li>
+<li>внешний вид;</li>
+<li>здоровье;</li>
+<li>характеристики;</li>
+<li>позиция;</li>
+<li>деньги;</li>
+<li>инвентарь;</li>
+<li>репутация;</li>
+<li>задания;</li>
+<li>принадлежность к организациям.</li>
+</ul>
+<h3 id="разделение">Разделение</h3>
+<p>Player Manager управляет подключением.</p>
+<p>Character System управляет персонажем.</p>
+<p>Базовый выбор персонажа при входе реализован через асинхронную загрузку списка: единственный персонаж выбирается автоматически, несколько доступны через текстовые команды. Полная Character System — сохранение игрового состояния, профили и spawn/load lifecycle — остаётся отдельной незавершённой задачей.</p>
+<hr>
+<h1 id="часть-v-мир-и-секторы">ЧАСТЬ V. МИР И СЕКТОРЫ</h1>
+<h2 id="12-world-manager">12. World Manager</h2>
+<h3 id="назначение-6">Назначение</h3>
+<p>Представление единого игрового мира, разделённого на секторы.</p>
+<h3 id="основные-операции-6">Основные операции</h3>
+<ul>
+<li>RegisterWorld</li>
+<li>RegisterSector</li>
+<li>FindSectorByPosition</li>
+<li>GetSectorBounds</li>
+<li>GetAdjacentSectors</li>
+<li>ConvertGlobalToLocal</li>
+<li>ConvertLocalToGlobal</li>
+<li>GetSectorServer</li>
+<li>IsSectorAvailable</li>
+</ul>
+<h3 id="модель-мира">Модель мира</h3>
+<pre><code class="language-text">                 GLOBAL WORLD
+
+       X →
+   ┌──────────┬──────────┬──────────┐
+   │          │          │          │
+   │ Sector A │ Sector B │ Sector C │
+   │          │          │          │
+   ├──────────┼──────────┼──────────┤
+   │          │          │          │
+ Y │ Sector D │ Sector E │ Sector F │
+ ↓ │          │          │          │
+   └──────────┴──────────┴──────────┘
+</code></pre>
+<h3 id="системы-координат">Системы координат</h3>
+<p>Каждый объект может иметь:</p>
+<p><strong>GlobalPosition</strong></p>
+<p>Позицию в логическом мире проекта.</p>
+<p><strong>LocalPosition</strong></p>
+<p>Позицию на конкретной карте CS2.</p>
+<p><strong>SectorId</strong></p>
+<p>Идентификатор сектора.</p>
+<p>Преобразование:</p>
+<pre><code class="language-text">GlobalPosition
+       │
+       ▼
+Sector Transform
+       │
+       ▼
+LocalPosition
+</code></pre>
+<p>Преобразование должно учитывать:</p>
+<ul>
+<li>смещение;</li>
+<li>ориентацию;</li>
+<li>масштаб, если используется;</li>
+<li>высоту;</li>
+<li>допустимую область появления.</li>
+</ul>
+<h3 id="простой-переход-между-серверами">Простой переход между серверами</h3>
+<p>Для ручного перехода игрок пишет в чат <code>!go &lt;server_id&gt;</code> (синоним <code>!transfer</code>). OW Core принимает запрос только от полностью Steam-аутентифицированного игрока, находит destination в локальном списке <code>[servers.*]</code> и отправляет клиенту <code>connect</code> на заранее проверенный endpoint. Клиент не может передать произвольный адрес.</p>
+<p>Это reconnect, а не бесшовный переход: автоматического запуска по координатам/trigger, резервирования destination, сохранения полной позиции/состояния и восстановления snapshot пока нет. До реализации этих частей карта может содержать заметные вручную созданные порталы/указатели с названием целевого сервера и подсказкой <code>!go &lt;server_id&gt;</code>.</p>
+<h3 id="бюджет-runtime-сущностей-карты">Бюджет runtime-сущностей карты</h3>
+<p>Лимит entity system нельзя расширить плагином. SDK задаёт таблицу на 512 entity identities × 64 списка (<code>MAX_TOTAL_ENTITIES = 32768</code>), однако это ёмкость пространства индексов, а не допустимый бюджет карты: игрокам и runtime-системам требуется запас. Для больших сцен статический декор следует запекать в world geometry: использовать Hammer <code>prop_static</code> и <code>Force Bake To World</code> (<code>baketoworld</code>), где это подходит, не отключать mesh merging без необходимости, а отдельными runtime entities оставлять лишь реально интерактивные, подвижные, физические или анимируемые объекты. Если динамический контент всё равно превышает доступный бюджет, уменьшайте его или распределяйте по картам-сегментам. Ручное вмешательство плагина в allocator/индексы не является безопасным обходом лимита.</p>
+<h3 id="границы-секторов">Границы секторов</h3>
+<p>Сектор должен описывать:</p>
+<ul>
+<li>идентификатор;</li>
+<li>геометрические границы;</li>
+<li>соседние секторы;</li>
+<li>карту CS2;</li>
+<li>сервер назначения;</li>
+<li>допустимые точки перехода;</li>
+<li>безопасные точки появления.</li>
+</ul>
+<hr>
+<h2 id="13-sector-manager">13. Sector Manager</h2>
+<h3 id="назначение-7">Назначение</h3>
+<p>Управление конкретным сектором на игровом сервере.</p>
+<h3 id="основные-операции-7">Основные операции</h3>
+<ul>
+<li>LoadSector</li>
+<li>ActivateSector</li>
+<li>DeactivateSector</li>
+<li>RegisterSectorEntities</li>
+<li>GetPlayersInSector</li>
+<li>DetectBoundaryApproach</li>
+<li>RequestSectorTransfer</li>
+</ul>
+<h3 id="переходные-зоны">Переходные зоны</h3>
+<p>Желательно использовать специальные переходные области.</p>
+<p>Например:</p>
+<pre><code class="language-text">       SECTOR A               SECTOR B
+
+  ┌──────────────────┬──────────────────┐
+  │                  │                  │
+  │                  │                  │
+  │             TRANSFER ZONE           │
+  │                  │                  │
+  └──────────────────┴──────────────────┘
+</code></pre>
+<p>В первой версии переход запускается при входе игрока в специальную область.</p>
+<p>Позже можно исследовать предзагрузку и визуальное скрытие переходов.</p>
+<hr>
+<h1 id="часть-vi-межсерверные-переходы">ЧАСТЬ VI. МЕЖСЕРВЕРНЫЕ ПЕРЕХОДЫ</h1>
+<h2 id="14-transfer-manager">14. Transfer Manager</h2>
+<h3 id="назначение-8">Назначение</h3>
+<p>Перемещение игрока между независимыми процессами CS2.</p>
+<h3 id="основные-операции-8">Основные операции</h3>
+<ul>
+<li>RequestTransfer</li>
+<li>ValidateTransfer</li>
+<li>PrepareDestination</li>
+<li>CapturePlayerSnapshot</li>
+<li>CreateTransferRecord</li>
+<li>BeginClientRedirect</li>
+<li>VerifyIncomingTransfer</li>
+<li>RestoreTransferredPlayer</li>
+<li>ConfirmArrival</li>
+<li>CompleteTransfer</li>
+<li>FailTransfer</li>
+<li>RecoverTransfer</li>
+</ul>
+<h3 id="последовательность">Последовательность</h3>
+<p>Подготовка данных разделяется на два этапа. До появления игрока на целевом сервере должны быть доступны актуальный transfer snapshot и прочие данные, без которых нельзя безопасно восстановить авторитетное игровое состояние. После их готовности игрок может начать игру; настройки интерфейса, косметика и другие некритичные разделы загружаются фоново и применяются по мере готовности. Ни один фоновый загрузчик не должен обращаться к API игрового движка из рабочего потока.</p>
+<p>Данные, влияющие на права доступа, владение сессией, экономику или целостность персонажа, нельзя откладывать до появления игрока, если без них невозможно безопасно разрешить соответствующее действие. Сервер обязан проверять такие операции по авторитетному хранилищу/координатору, а не доверять одному лишь кэшу.</p>
+<pre><code class="language-text">PLAYER          SERVER A       COORDINATOR       SERVER B
+   │                │                │                │
+   │ Входит в зону  │                │                │
+   ├───────────────►│                │                │
+   │                │                │                │
+   │                │ Prepare        │                │
+   │                ├───────────────►│                │
+   │                │                │ Reserve        │
+   │                │                ├───────────────►│
+   │                │                │◄───────────────┤
+   │                │                │ Ready          │
+   │                │                │                │
+   │                │ Save snapshot  │                │
+   │                ├───────────────►│                │
+   │                │                │                │
+   │ Redirect       │                │                │
+   │◄───────────────┤                │                │
+   │                │                │                │
+   │ Подключение к B│                │                │
+   ├─────────────────────────────────────────────────►│
+   │                │                │                │
+   │                │                │ Verify         │
+   │                │                │◄───────────────┤
+   │                │                │                │
+   │                │                │ Restore state  │
+   │                │                ├───────────────►│
+   │                │                │                │
+   │                │                │ Arrival OK     │
+   │                │                │◄───────────────┤
+   │                │                │                │
+   │                │ Complete       │                │
+   │                │◄───────────────┤                │
+</code></pre>
+<h3 id="состояния-перехода">Состояния перехода</h3>
+<pre><code class="language-text">REQUESTED
+    │
+    ▼
+VALIDATING
+    │
+    ▼
+DESTINATION_RESERVED
+    │
+    ▼
+STATE_SAVED
+    │
+    ▼
+REDIRECTING
+    │
+    ▼
+ARRIVING
+    │
+    ▼
+COMPLETED
+</code></pre>
+<p>Дополнительные состояния:</p>
+<ul>
+<li>FAILED;</li>
+<li>EXPIRED;</li>
+<li>RECOVERING;</li>
+<li>CANCELLED.</li>
+</ul>
+<h3 id="передаваемое-состояние">Передаваемое состояние</h3>
+<pre><code class="language-text">TransferSnapshot
+├── TransferId
+├── PlayerId
+├── CharacterId
+├── SourceServerId
+├── DestinationServerId
+├── SourcePosition
+├── DestinationPosition
+├── HealthState
+├── InventoryRevision
+├── EconomyRevision
+├── ActiveQuestState
+├── VehicleTransferState
+├── CreatedAt
+└── ExpiresAt
+</code></pre>
+<h3 id="важнейшее-правило">Важнейшее правило</h3>
+<p>Одновременно только один сервер имеет право изменять авторитетное состояние персонажа.</p>
+<p>Для этого предусматривается механизм владения сессией с поколением или fencing token.</p>
+<p>Сервер со старым поколением не должен иметь возможности записать устаревшее состояние поверх нового.</p>
+<h3 id="обработка-сбоев">Обработка сбоев</h3>
+<p><strong>Сервер B недоступен</strong></p>
+<p>Переход не начинается.</p>
+<p><strong>Игрок отключился во время перехода</strong></p>
+<p>Операция остаётся в восстанавливаемом состоянии.</p>
+<p><strong>Игрок подключился к B, но подтверждение потерялось</strong></p>
+<p>Повторное подтверждение не должно создавать вторую сессию.</p>
+<p><strong>Сервер A упал</strong></p>
+<p>Coordinator определяет владельца сессии по сохранённому состоянию.</p>
+<p><strong>Истёк срок перехода</strong></p>
+<p>Операция переводится в восстановление или отмену по установленным правилам.</p>
+<h3 id="ограничение">Ограничение</h3>
+<p>Полностью бесшовный переход без клиентской загрузки не считается подтверждённой возможностью.</p>
+<p>Первая версия должна использовать реально поддерживаемый механизм перехода между серверами.</p>
+<p>Предварительный кандидат для проверки — отправка подключённому клиенту команды <code>connect &lt;адрес&gt;</code> через серверный интерфейс клиентских команд CS2. Перед отправкой сервер резервирует слот назначения, сохраняет снимок персонажа и выдаёт одноразовый короткоживущий transfer token. Сервер назначения проверяет token и Steam-аутентификацию, затем подтверждает прибытие координатору. Это переподключение, а не бесшовная миграция: загрузка карты и повторная авторизация остаются под контролем клиента и игры. Механизм должен быть проверен на выделенном сервере, включая ограничения client command, таймауты и отказ назначения; открытый ADR-025 остаётся открытым до такого прототипа.</p>
+<hr>
+<h1 id="часть-vii-хранение-данных">ЧАСТЬ VII. ХРАНЕНИЕ ДАННЫХ</h1>
+<h2 id="15-persistence">15. Persistence</h2>
+<h3 id="назначение-9">Назначение</h3>
+<p>Единая система долговременного хранения.</p>
+<h3 id="предпочтительная-субд">Предпочтительная СУБД</h3>
+<p>PostgreSQL. Встроенная мини-СУБД не разрабатывается.</p>
+<h3 id="основные-операции-9">Основные операции</h3>
+<ul>
+<li>LoadPlayer</li>
+<li>SavePlayer</li>
+<li>LoadCharacter</li>
+<li>SaveCharacter</li>
+<li>BeginTransaction</li>
+<li>CommitTransaction</li>
+<li>RollbackTransaction</li>
+<li>ExecuteMigration</li>
+<li>GetRecordVersion</li>
+</ul>
+<h3 id="основные-таблицы">Основные таблицы</h3>
+<pre><code class="language-text">accounts
+characters
+character_positions
+character_stats
+player_sessions
+transfers
+inventories
+inventory_items
+item_definitions
+wallets
+economy_transactions
+vehicles
+vehicle_ownership
+quests
+quest_progress
+npc_persistent_state
+world_state
+module_migrations
+audit_log
+</code></pre>
+<h3 id="правила-4">Правила</h3>
+<p>Каждый модуль владеет собственной схемой данных.</p>
+<p>Другие модули получают информацию через сервисные интерфейсы.</p>
+<p>Денежные операции выполняются атомарно.</p>
+<p>Для критичных изменений используются версии записей и проверки конфликтов.</p>
+<p>Не требуется записывать в БД каждое изменение координат на каждом игровом тике.</p>
+<h3 id="сохранение">Сохранение</h3>
+<p>Используются три механизма:</p>
+<ol>
+<li>Сохранение при значимых действиях.</li>
+<li>Периодические контрольные сохранения.</li>
+<li>Сохранение при переходе между серверами.</li>
+</ol>
+<p>Для экономики и других критичных операций допускаются более строгие требования к фиксации данных.</p>
+<hr>
+<h2 id="16-cache-manager-локальный-кеш-настроек-и-экспериментальный-fallback">16. Cache Manager (локальный кеш настроек и экспериментальный fallback)</h2>
+<h3 id="назначение-10">Назначение</h3>
+<p>Локально ускорять повторное чтение редко меняющихся настроек игрока. Кеш ограничен временем жизни и памятью; PostgreSQL остаётся источником истины.</p>
+<h3 id="принцип">Принцип</h3>
+<p>Кешируются только <code>PlayerSettings</code>: максимум 512 записей, максимум 4 MiB сериализованных данных и TTL 30 секунд. Успешная запись обновляет локальную копию; ошибка записи инвалидирует её. Изменения с другого игрового сервера могут быть видны с задержкой не более TTL. Не кешируются состояние персонажа, инвентарь, баланс, транзакции, авторизация и межсерверное владение/перенос. Эти данные требуют PostgreSQL и проверок revision/идемпотентности.</p>
+<p>После полной Steam-аутентификации настройки загружаются однопоточным bounded worker вне игрового потока; игровой поток применяет ответ только при совпадении SteamID и активного request ID игрока в том же слоте. Загрузка не задерживает появление в игре. Отсутствующая строка настроек трактуется как <code>{}</code> с revision 0 и кешируется на короткий TTL.</p>
+<p>Этот кеш только локальный для процесса и не передаёт данные между серверами. Redis/общий LRU/прогрев остаются экспериментальными компонентами, исключёнными из стандартной сборки и не подключёнными к игровому lifecycle. Они не обеспечивают моментальный transfer.</p>
+<hr>
+<h1 id="часть-viii-межсерверная-координация">ЧАСТЬ VIII. МЕЖСЕРВЕРНАЯ КООРДИНАЦИЯ</h1>
+<h2 id="17-coordinator">17. Coordinator</h2>
+<h3 id="назначение-11">Назначение</h3>
+<p>Управление игровым кластером.</p>
+<h3 id="основные-операции-10">Основные операции</h3>
+<ul>
+<li>RegisterServer</li>
+<li>UnregisterServer</li>
+<li>ReceiveHeartbeat</li>
+<li>GetServerStatus</li>
+<li>FindServerForSector</li>
+<li>ReservePlayerSlot</li>
+<li>ReleasePlayerSlot</li>
+<li>AcquireSessionOwnership</li>
+<li>TransferSessionOwnership</li>
+<li>GetClusterTopology</li>
+</ul>
+<h3 id="состояния-серверов">Состояния серверов</h3>
+<pre><code class="language-text">STARTING
+READY
+BUSY
+DRAINING
+OFFLINE
+FAILED
+</code></pre>
+<h3 id="правила-5">Правила</h3>
+<p>Coordinator не должен обрабатывать каждый игровой тик.</p>
+<p>Он отвечает за координацию, а не за игровую симуляцию.</p>
+<p>Потеря связи с Coordinator должна переводить игровые серверы в заранее определённый режим, исключающий конфликтующие операции.</p>
+<hr>
+<h2 id="18-message-transport">18. Message Transport</h2>
+<h3 id="назначение-12">Назначение</h3>
+<p>Передача команд и событий между процессами.</p>
+<h3 id="основные-операции-11">Основные операции</h3>
+<ul>
+<li>Connect</li>
+<li>Disconnect</li>
+<li>SendCommand</li>
+<li>PublishEvent</li>
+<li>Subscribe</li>
+<li>Acknowledge</li>
+<li>Retry</li>
+<li>GetConnectionStatus</li>
+</ul>
+<h3 id="требования-к-сообщениям">Требования к сообщениям</h3>
+<p>Каждое критичное сообщение должно иметь:</p>
+<ul>
+<li>MessageId;</li>
+<li>тип;</li>
+<li>версию схемы;</li>
+<li>источник;</li>
+<li>назначение;</li>
+<li>время создания;</li>
+<li>CorrelationId;</li>
+<li>данные;</li>
+<li>идентификатор операции для защиты от повторов.</li>
+</ul>
+<h3 id="правила-6">Правила</h3>
+<p>Нельзя предполагать, что каждое сообщение будет доставлено ровно один раз.</p>
+<p>Обработчики критичных команд должны быть идемпотентными.</p>
+<p>Сообщения от игровых серверов должны проходить аутентификацию и авторизацию.</p>
+<hr>
+<h1 id="часть-ix-сущности-и-объекты">ЧАСТЬ IX. СУЩНОСТИ И ОБЪЕКТЫ</h1>
+<h2 id="19-entity-manager">19. Entity Manager</h2>
+<h3 id="назначение-13">Назначение</h3>
+<p>Безопасное управление игровыми сущностями.</p>
+<h3 id="основные-операции-12">Основные операции</h3>
+<ul>
+<li>RegisterEntity</li>
+<li>UnregisterEntity</li>
+<li>ResolveEntity</li>
+<li>IsEntityAlive</li>
+<li>GetEntityType</li>
+<li>GetEntityOwner</li>
+<li>OnEntityDestroyed</li>
+</ul>
+<h3 id="идентификаторы">Идентификаторы</h3>
+<p>Необходимо различать:</p>
+<p><strong>Engine Entity Handle</strong></p>
+<p>Ссылка на объект движка.</p>
+<p><strong>World Entity Id</strong></p>
+<p>Стабильный идентификатор объекта нашей системы.</p>
+<p><strong>Persistent Entity Id</strong></p>
+<p>Идентификатор объекта, состояние которого сохраняется между перезапусками.</p>
+<h3 id="правило">Правило</h3>
+<p>Долговременные данные не должны содержать необработанные адреса памяти движка.</p>
+<hr>
+<h1 id="часть-x-npc">ЧАСТЬ X. NPC</h1>
+<h2 id="20-npc-system">20. NPC System</h2>
+<h3 id="назначение-14">Назначение</h3>
+<p>Создание NPC и управление их жизненным циклом.</p>
+<h3 id="основные-операции-13">Основные операции</h3>
+<ul>
+<li>RegisterNPCDefinition</li>
+<li>SpawnNPC</li>
+<li>DespawnNPC</li>
+<li>GetNPC</li>
+<li>SetNPCState</li>
+<li>AssignBehavior</li>
+<li>StartNPCInteraction</li>
+<li>StopNPCInteraction</li>
+<li>SavePersistentNPC</li>
+</ul>
+<h3 id="данные-npc">Данные NPC</h3>
+<pre><code class="language-text">NPC
+├── NpcId
+├── DefinitionId
+├── EntityHandle
+├── Position
+├── Appearance
+├── BehaviorProfile
+├── InteractionProfile
+├── DialogId
+├── FactionId
+└── PersistentState
+</code></pre>
+<h3 id="категории-npc">Категории NPC</h3>
+<ul>
+<li>декоративные;</li>
+<li>диалоговые;</li>
+<li>торговцы;</li>
+<li>квестовые;</li>
+<li>охранники;</li>
+<li>враждебные;</li>
+<li>транспортные;</li>
+<li>системные.</li>
+</ul>
+<h3 id="поведение">Поведение</h3>
+<p>Поведение NPC должно определяться отдельно от способа его отображения.</p>
+<p>Наличие полноценного NPC с навигацией, анимациями и ИИ в CS2 требует отдельного технического исследования.</p>
+<hr>
+<h2 id="21-npc-behavior-system">21. NPC Behavior System</h2>
+<h3 id="назначение-15">Назначение</h3>
+<p>Логика поведения NPC.</p>
+<h3 id="основные-операции-14">Основные операции</h3>
+<ul>
+<li>RegisterBehavior</li>
+<li>AssignBehavior</li>
+<li>UpdateBehavior</li>
+<li>ChangeBehaviorState</li>
+<li>SuspendBehavior</li>
+<li>ResumeBehavior</li>
+</ul>
+<h3 id="возможные-состояния">Возможные состояния</h3>
+<pre><code class="language-text">IDLE
+PATROL
+INTERACTING
+FOLLOWING
+FLEEING
+COMBAT
+DISABLED
+</code></pre>
+<h3 id="требования">Требования</h3>
+<p>Поведение должно иметь ограничения по времени выполнения.</p>
+<p>Необязательно обновлять каждого NPC на каждом игровом тике.</p>
+<p>Для удалённых от игроков NPC допускается упрощённая симуляция.</p>
+<hr>
+<h1 id="часть-xi-взаимодействия">ЧАСТЬ XI. ВЗАИМОДЕЙСТВИЯ</h1>
+<h2 id="22-interaction-system">22. Interaction System</h2>
+<h3 id="назначение-16">Назначение</h3>
+<p>Обработка взаимодействий игроков с миром.</p>
+<h3 id="основные-операции-15">Основные операции</h3>
+<ul>
+<li>RegisterInteractable</li>
+<li>UnregisterInteractable</li>
+<li>FindNearbyInteractables</li>
+<li>CanInteract</li>
+<li>BeginInteraction</li>
+<li>CompleteInteraction</li>
+<li>CancelInteraction</li>
+</ul>
+<h3 id="примеры">Примеры</h3>
+<ul>
+<li>разговор с NPC;</li>
+<li>открытие двери;</li>
+<li>посадка в транспорт;</li>
+<li>использование терминала;</li>
+<li>открытие магазина;</li>
+<li>получение предмета.</li>
+</ul>
+<h3 id="проверки">Проверки</h3>
+<p>Перед выполнением действия сервер проверяет:</p>
+<ul>
+<li>существование игрока;</li>
+<li>существование объекта;</li>
+<li>расстояние;</li>
+<li>состояние персонажа;</li>
+<li>разрешения;</li>
+<li>доступность действия;</li>
+<li>ограничения по времени.</li>
+</ul>
+<hr>
+<h1 id="часть-xii-диалоги">ЧАСТЬ XII. ДИАЛОГИ</h1>
+<h2 id="23-dialog-system">23. Dialog System</h2>
+<h3 id="назначение-17">Назначение</h3>
+<p>Управление диалогами и выбором ответов.</p>
+<h3 id="основные-операции-16">Основные операции</h3>
+<ul>
+<li>RegisterDialog</li>
+<li>StartDialog</li>
+<li>GetCurrentNode</li>
+<li>GetAvailableAnswers</li>
+<li>SubmitAnswer</li>
+<li>AdvanceDialog</li>
+<li>CancelDialog</li>
+<li>EndDialog</li>
+</ul>
+<h3 id="структура">Структура</h3>
+<pre><code class="language-text">Dialog
+  │
+  ▼
+Dialog Node
+  │
+  ├── NPC Text
+  ├── Voice Asset
+  ├── Conditions
+  └── Answers
+        │
+        ├── Answer A → Node 2
+        ├── Answer B → Quest Action
+        └── Answer C → End
+</code></pre>
+<h3 id="пример">Пример</h3>
+<pre><code class="language-text">NPC: Привет. Нужна работа?
+
+[1] Да, что предлагаешь?
+[2] Нет, спасибо.
+[3] Кто ты?
+</code></pre>
+<p>При выборе ответа система:</p>
+<ol>
+<li>Проверяет активную сессию диалога.</li>
+<li>Проверяет существование выбранного варианта.</li>
+<li>Проверяет условия.</li>
+<li>Выполняет разрешённые действия.</li>
+<li>Переходит к следующему узлу.</li>
+<li>Обновляет интерфейс.</li>
+</ol>
+<h3 id="правила-7">Правила</h3>
+<p>Клиент передаёт идентификатор ответа.</p>
+<p>Клиент не определяет последствия ответа.</p>
+<p>Диалог должен корректно завершаться при отключении игрока, удалении NPC или смене сервера.</p>
+<hr>
+<h1 id="часть-xiii-пользовательский-интерфейс">ЧАСТЬ XIII. ПОЛЬЗОВАТЕЛЬСКИЙ ИНТЕРФЕЙС</h1>
+<h2 id="24-ui-manager">24. UI Manager</h2>
+<h3 id="назначение-18">Назначение</h3>
+<p>Единый интерфейс между игровой логикой и системами отображения.</p>
+<h3 id="основные-операции-17">Основные операции</h3>
+<ul>
+<li>RegisterView</li>
+<li>OpenView</li>
+<li>CloseView</li>
+<li>UpdateView</li>
+<li>SetViewData</li>
+<li>SetInputMode</li>
+<li>HandleUIAction</li>
+<li>GetActiveView</li>
+<li>CloseAllViews</li>
+</ul>
+<h3 id="архитектура">Архитектура</h3>
+<pre><code class="language-text">                GAMEPLAY MODULES
+                       │
+                       ▼
+                    UI MANAGER
+                       │
+             ┌─────────┼─────────┐
+             │         │         │
+             ▼         ▼         ▼
+          Particle   Panorama   Built-in
+          Adapter    Adapter    Adapter
+             │         │         │
+             └─────────┼─────────┘
+                       │
+                       ▼
+                   CS2 CLIENT
+</code></pre>
+<h3 id="правила-8">Правила</h3>
+<p>Gameplay-модули не должны напрямую зависеть от SwiftlyS2 или конкретной библиотеки меню.</p>
+<p>Каждый адаптер сообщает о поддерживаемых возможностях.</p>
+<p>Например:</p>
+<pre><code class="language-text">SupportsMouseInput
+SupportsKeyboardInput
+SupportsImages
+SupportsText
+SupportsAnimation
+SupportsFullscreen
+SupportsPerPlayerViews
+</code></pre>
+<p>Если технология не поддерживает требуемую функцию, UI Manager должен вернуть понятную ошибку или выбрать предусмотренный запасной вариант.</p>
+<hr>
+<h2 id="25-particle-ui-adapter">25. Particle UI Adapter</h2>
+<h3 id="назначение-19">Назначение</h3>
+<p>Отображение специализированных интерфейсов средствами игровых частиц и связанных визуальных ресурсов. Particle UI является обязательной подсистемой, но не единственным способом отображения.</p>
+<h3 id="основные-операции-18">Основные операции</h3>
+<ul>
+<li>CreateParticleView</li>
+<li>ShowParticleView</li>
+<li>UpdateParticleView</li>
+<li>DestroyParticleView</li>
+<li>SetSelection</li>
+<li>HandleSelectionInput</li>
+</ul>
+<h3 id="предполагаемые-применения">Предполагаемые применения</h3>
+<ul>
+<li>диалоги;</li>
+<li>меню взаимодействия;</li>
+<li>небольшие панели;</li>
+<li>выбор действий;</li>
+<li>пространственные интерфейсы.</li>
+</ul>
+<h3 id="исследуемые-возможности">Исследуемые возможности</h3>
+<ul>
+<li>индивидуальное отображение;</li>
+<li>виртуальный курсор на основе изменений угла обзора;</li>
+<li>индивидуальная передача particle-сущностей и control points;</li>
+<li>позиционирование относительно камеры;</li>
+<li>масштабирование;</li>
+<li>производительность;</li>
+<li>ограничения по количеству элементов.</li>
+</ul>
+<p>Для первичного прототипа изучается SwiftParticleMenuDemo: <a href="https://github.com/nicedayzhu/SwiftParticleMenuDemo">https://github.com/nicedayzhu/SwiftParticleMenuDemo</a>. Его меню использует изменения yaw/pitch как относительный ввод, серверный hit testing и particle control points; это поведение переписывается на C++ с Metamod:Source и hl2sdk-cs2, без SwiftlyS2. Ресурсы меню поставляются через Workshop. Конкретная библиотека/формат UI остаётся открытым до прототипа.</p>
+<hr>
+<h2 id="26-panorama-ui-adapter">26. Panorama UI Adapter</h2>
+<h3 id="назначение-20">Назначение</h3>
+<p>Работа с пользовательскими интерфейсами Panorama, если требуемые возможности доступны через поддерживаемые механизмы CS2. Простые и штатно доступные HUD-элементы, включая полосы здоровья и боеприпасов, в первую очередь реализуются средствами Panorama. Particle UI применяется для специализированных меню и интерфейсов, которые практичнее или возможно реализовать только частицами.</p>
+<h3 id="предполагаемые-применения-1">Предполагаемые применения</h3>
+<ul>
+<li>карта мира;</li>
+<li>инвентарь;</li>
+<li>телефон;</li>
+<li>интерфейс заданий;</li>
+<li>меню персонажа;</li>
+<li>уведомления.</li>
+</ul>
+<h3 id="основные-операции-19">Основные операции</h3>
+<ul>
+<li>OpenPanoramaView</li>
+<li>ClosePanoramaView</li>
+<li>UpdatePanoramaData</li>
+<li>HandlePanoramaAction</li>
+</ul>
+<h3 id="ограничение-1">Ограничение</h3>
+<p>Серверный адаптер может адресно отправлять штатные текстовые сообщения CS2 через <code>TextMsg</code> в <code>HUD_PRINTNOTIFY</code>, <code>HUD_PRINTCONSOLE</code>, <code>HUD_PRINTTALK</code> и <code>HUD_PRINTCENTER</code>. Он сообщает поддержку текстовых уведомлений и доставки одному игроку; произвольные Panorama-панели, JS, обновление данных панели и клиентские действия возвращают <code>Unsupported</code>.</p>
+<p>Нельзя считать гарантированными произвольное изменение клиентского Panorama, замену стандартного HUD или перехват всех клавиш только средствами серверного Metamod-плагина. Серверная логика не должна полагаться на неподтверждённое клиентское поведение. Для настоящих Panorama-панелей потребуется подтверждённый клиентский обработчик или другой документированный механизм.</p>
+<hr>
+<h2 id="27-hud-system">27. HUD System</h2>
+<h3 id="назначение-21">Назначение</h3>
+<p>Управление игровым интерфейсом персонажа.</p>
+<h3 id="элементы">Элементы</h3>
+<ul>
+<li>здоровье;</li>
+<li>броня;</li>
+<li>деньги;</li>
+<li>активное оружие;</li>
+<li>боеприпасы;</li>
+<li>мини-карта;</li>
+<li>уведомления;</li>
+<li>текущая задача;</li>
+<li>индикаторы транспорта;</li>
+<li>подсказки взаимодействия.</li>
+</ul>
+<h3 id="основные-операции-20">Основные операции</h3>
+<ul>
+<li>RegisterHUDElement</li>
+<li>ShowHUDElement</li>
+<li>HideHUDElement</li>
+<li>UpdateHUDElement</li>
+<li>SetHUDProfile</li>
+<li>RestoreHUDProfile</li>
+</ul>
+<h3 id="профили">Профили</h3>
+<pre><code class="language-text">DEFAULT
+EXPLORATION
+COMBAT
+VEHICLE
+DIALOG
+CINEMATIC
+</code></pre>
+<h3 id="важное-ограничение">Важное ограничение</h3>
+<p><code>HUDSystem</code> хранит элементы по игрокам, поддерживает профили <code>DEFAULT</code>, <code>EXPLORATION</code>, <code>COMBAT</code>, <code>VEHICLE</code>, <code>DIALOG</code> и <code>CINEMATIC</code>, а также видимость, значения и включение HUD для игрока. Команда <code>!hud [on|off|toggle]</code> включает или скрывает overlay. Текущий серверный рендерер выводит элементы как адресный многострочный <code>HUD_PRINTCENTER</code> текст и обновляет его не чаще раза в секунду. Это текстовый HUD/fallback, а не графическая Panorama-панель.</p>
+<p>Возможность скрыть конкретный стандартный элемент HUD CS2 или рисовать постоянные графические виджеты должна проверяться отдельно. Если стандартный элемент невозможно убрать серверными средствами, необходимо предусмотреть альтернативный дизайн или клиентский UI-компонент.</p>
+<hr>
+<h2 id="28-input-manager">28. Input Manager</h2>
+<h3 id="назначение-22">Назначение</h3>
+<p>Преобразование доступных игровых действий в логические команды системы.</p>
+<h3 id="основные-операции-21">Основные операции</h3>
+<ul>
+<li>RegisterAction</li>
+<li>BindAction</li>
+<li>UnbindAction</li>
+<li>HandleInput</li>
+<li>PushInputContext</li>
+<li>PopInputContext</li>
+</ul>
+<h3 id="контексты">Контексты</h3>
+<pre><code class="language-text">GAMEPLAY
+DIALOG
+INVENTORY
+MAP
+VEHICLE
+MENU
+</code></pre>
+<h3 id="пример-1">Пример</h3>
+<pre><code class="language-text">Физический ввод
+      │
+      ▼
+Input Adapter
+      │
+      ▼
+Logical Action
+      │
+      ▼
+UI / Gameplay Module
+</code></pre>
+<h3 id="ограничение-2">Ограничение</h3>
+<p>Сервер не получает автоматически доступ ко всем физическим нажатиям клавиатуры и мыши клиента. <code>InputManager</code> реализует контексты, логические действия и обработку фронтов кнопок из переданного снимка; это не означает, что Metamod сам перехватывает клавиатуру.</p>
+<p>Для явного fallback поставляется необязательный клиентский <code>client/cfg/ow_keyboard_bindings.cfg</code>: <code>E</code> сохраняет <code>+use</code> и дополнительно отправляет серверу фиксированное действие инвентаря, <code>TAB</code> сохраняет <code>+showscores</code> и отправляет действие карты. Это не отключает/не заменяет стандартное табло и требует установки конфигурации самим клиентом. Прямой перехват клавиш и совместимость командного forwarding необходимо проверить в живом CS2.</p>
+<p>Пока серверный UI-адаптер умеет только адресные <code>TextMsg</code>, действие карты показывает имя текущей карты и сообщает об отсутствии графической панели. Реальная карта, Panorama-панель и ее обновление остаются неподдержанными до появления подтверждённого клиентского UI-механизма.</p>
+<hr>
+<h1 id="часть-xiv-аудио">ЧАСТЬ XIV. АУДИО</h1>
+<h2 id="29-audio-manager">29. Audio Manager</h2>
+<h3 id="назначение-23">Назначение</h3>
+<p>Воспроизведение звуковых ресурсов.</p>
+<h3 id="основные-операции-22">Основные операции</h3>
+<ul>
+<li>RegisterSound</li>
+<li>PlaySound</li>
+<li>StopSound</li>
+<li>PlaySpatialSound</li>
+<li>PlayDialogVoice</li>
+<li>SetAudioCategoryVolume</li>
+</ul>
+<h3 id="категории">Категории</h3>
+<ul>
+<li>интерфейс;</li>
+<li>диалоги;</li>
+<li>окружающий мир;</li>
+<li>транспорт;</li>
+<li>музыка;</li>
+<li>игровые эффекты.</li>
+</ul>
+<h3 id="правила-9">Правила</h3>
+<p>Ресурсы должны быть доступны клиенту через поддерживаемый механизм распространения.</p>
+<p>Воспроизведение звуков должно учитывать расстояние и контекст, если это необходимо.</p>
+<hr>
+<h1 id="часть-xv-инвентарь">ЧАСТЬ XV. ИНВЕНТАРЬ</h1>
+<h2 id="30-inventory-system">30. Inventory System</h2>
+<h3 id="назначение-24">Назначение</h3>
+<p>Хранение предметов персонажей.</p>
+<h3 id="основные-операции-23">Основные операции</h3>
+<ul>
+<li>RegisterItemDefinition</li>
+<li>CreateInventory</li>
+<li>GetInventory</li>
+<li>CanAddItem</li>
+<li>AddItem</li>
+<li>RemoveItem</li>
+<li>MoveItem</li>
+<li>SplitStack</li>
+<li>MergeStack</li>
+<li>UseItem</li>
+<li>TransferItem</li>
+</ul>
+<h3 id="модель-предмета">Модель предмета</h3>
+<pre><code class="language-text">Item
+├── ItemId
+├── DefinitionId
+├── Quantity
+├── Metadata
+├── OwnerId
+└── Revision
+</code></pre>
+<h3 id="правила-10">Правила</h3>
+<p>Нельзя создавать предметы по неподтверждённой клиентской команде.</p>
+<p>Передача предметов между игроками должна быть атомарной.</p>
+<p>Повтор одного запроса не должен создавать дубликаты предметов.</p>
+<hr>
+<h1 id="часть-xvi-экономика">ЧАСТЬ XVI. ЭКОНОМИКА</h1>
+<h2 id="31-economy-system">31. Economy System</h2>
+<h3 id="назначение-25">Назначение</h3>
+<p>Управление игровой валютой.</p>
+<h3 id="основные-операции-24">Основные операции</h3>
+<ul>
+<li>CreateWallet</li>
+<li>GetBalance</li>
+<li>Credit</li>
+<li>Debit</li>
+<li>TransferFunds</li>
+<li>GetTransactionHistory</li>
+<li>ValidateTransaction</li>
+</ul>
+<h3 id="правила-11">Правила</h3>
+<p>Деньги не должны изменяться простым присваиванием произвольного баланса.</p>
+<p>Изменения фиксируются как операции.</p>
+<p>Каждая операция имеет уникальный идентификатор.</p>
+<p>Повторное выполнение операции не должно повторно начислять деньги.</p>
+<hr>
+<h1 id="часть-xvii-задания">ЧАСТЬ XVII. ЗАДАНИЯ</h1>
+<h2 id="32-quest-system">32. Quest System</h2>
+<h3 id="назначение-26">Назначение</h3>
+<p>Управление заданиями.</p>
+<h3 id="основные-операции-25">Основные операции</h3>
+<ul>
+<li>RegisterQuest</li>
+<li>CanStartQuest</li>
+<li>StartQuest</li>
+<li>UpdateObjective</li>
+<li>CompleteObjective</li>
+<li>CompleteQuest</li>
+<li>FailQuest</li>
+<li>GetQuestProgress</li>
+</ul>
+<h3 id="модель">Модель</h3>
+<pre><code class="language-text">Quest
+├── QuestId
+├── Requirements
+├── Objectives
+├── Rewards
+├── FailureConditions
+└── CompletionActions
+</code></pre>
+<h3 id="примеры-целей">Примеры целей</h3>
+<ul>
+<li>поговорить с NPC;</li>
+<li>посетить район;</li>
+<li>доставить предмет;</li>
+<li>добраться до точки;</li>
+<li>выполнить взаимодействие.</li>
+</ul>
+<h3 id="правила-12">Правила</h3>
+<p>Награды выдаются только после серверной проверки выполнения задания.</p>
+<p>Завершение задания и выдача награды должны быть согласованной операцией.</p>
+<hr>
+<h1 id="часть-xviii-транспорт">ЧАСТЬ XVIII. ТРАНСПОРТ</h1>
+<h2 id="33-vehicle-system">33. Vehicle System</h2>
+<h3 id="назначение-27">Назначение</h3>
+<p>Управление транспортными средствами.</p>
+<h3 id="основные-операции-26">Основные операции</h3>
+<ul>
+<li>RegisterVehicleDefinition</li>
+<li>SpawnVehicle</li>
+<li>DespawnVehicle</li>
+<li>EnterVehicle</li>
+<li>ExitVehicle</li>
+<li>AssignVehicleOwner</li>
+<li>SaveVehicleState</li>
+<li>RestoreVehicleState</li>
+<li>RequestVehicleTransfer</li>
+</ul>
+<h3 id="состояние">Состояние</h3>
+<pre><code class="language-text">Vehicle
+├── VehicleId
+├── DefinitionId
+├── OwnerId
+├── Position
+├── Rotation
+├── Condition
+├── Fuel
+├── Occupants
+└── PersistentState
+</code></pre>
+<h3 id="важное-ограничение-1">Важное ограничение</h3>
+<p>Полноценное управляемое транспортное средство с физикой, посадкой, пассажирами и анимациями не считается готовой возможностью CS2.</p>
+<p>Потребуется отдельный прототип, подтверждающий реализуемость выбранной модели транспорта.</p>
+<h3 id="межсерверный-переход">Межсерверный переход</h3>
+<p>Транспорт и пассажиры должны рассматриваться как связанная операция.</p>
+<p>Нельзя завершить перенос автомобиля, оставив пассажиров в неопределённом состоянии.</p>
+<hr>
+<h1 id="часть-xix-здоровье-и-урон">ЧАСТЬ XIX. ЗДОРОВЬЕ И УРОН</h1>
+<h2 id="34-health-system">34. Health System</h2>
+<h3 id="назначение-28">Назначение</h3>
+<p>Управление игровым здоровьем и правилами урона.</p>
+<h3 id="основные-операции-27">Основные операции</h3>
+<ul>
+<li>GetHealth</li>
+<li>SetHealth</li>
+<li>CanReceiveDamage</li>
+<li>ApplyDamage</li>
+<li>Heal</li>
+<li>SetInvulnerability</li>
+<li>OnDeath</li>
+</ul>
+<h3 id="настройки">Настройки</h3>
+<pre><code class="language-text">health.enabled
+health.damage_enabled
+health.infinite_health
+health.regeneration_enabled
+health.maximum_health
+</code></pre>
+<h3 id="правила-13">Правила</h3>
+<p>Модуль должен учитывать совместимость с механизмами урона движка.</p>
+<p>Отключение модуля не должно автоматически означать отсутствие любых повреждений: базовая игра может продолжать обрабатывать урон.</p>
+<p>Для режима без урона нужен отдельный подтверждённый механизм управления правилами повреждений.</p>
+<hr>
+<h1 id="часть-xx-оружие">ЧАСТЬ XX. ОРУЖИЕ</h1>
+<h2 id="35-weapon-system">35. Weapon System</h2>
+<h3 id="назначение-29">Назначение</h3>
+<p>Управление разрешённым оружием и игровыми ограничениями.</p>
+<h3 id="основные-операции-28">Основные операции</h3>
+<ul>
+<li>RegisterWeaponRules</li>
+<li>CanEquipWeapon</li>
+<li>CanUseWeapon</li>
+<li>GiveWeapon</li>
+<li>RemoveWeapon</li>
+<li>GetActiveWeapon</li>
+<li>ApplyWeaponRestrictions</li>
+</ul>
+<h3 id="режимы">Режимы</h3>
+<ul>
+<li>без оружия;</li>
+<li>стандартное оружие;</li>
+<li>ограниченное оружие;</li>
+<li>пользовательские правила.</li>
+</ul>
+<h3 id="правила-14">Правила</h3>
+<p>Weapon System не должен владеть общим инвентарём.</p>
+<p>Он взаимодействует с Inventory через интерфейс.</p>
+<hr>
+<h1 id="часть-xxi-мультиплеерные-взаимодействия">ЧАСТЬ XXI. МУЛЬТИПЛЕЕРНЫЕ ВЗАИМОДЕЙСТВИЯ</h1>
+<h2 id="36-social-system">36. Social System</h2>
+<h3 id="назначение-30">Назначение</h3>
+<p>Социальные взаимодействия игроков.</p>
+<h3 id="основные-операции-29">Основные операции</h3>
+<ul>
+<li>SendPrivateMessage</li>
+<li>CreateGroup</li>
+<li>InvitePlayer</li>
+<li>JoinGroup</li>
+<li>LeaveGroup</li>
+<li>GetGroupMembers</li>
+</ul>
+<h3 id="возможные-расширения">Возможные расширения</h3>
+<ul>
+<li>организации;</li>
+<li>фракции;</li>
+<li>друзья;</li>
+<li>группы;</li>
+<li>совместные задания.</li>
+</ul>
+<hr>
+<h2 id="37-permission-system">37. Permission System</h2>
+<h3 id="назначение-31">Назначение</h3>
+<p>Контроль доступа к действиям.</p>
+<h3 id="основные-операции-30">Основные операции</h3>
+<ul>
+<li>RegisterPermission</li>
+<li>AssignRole</li>
+<li>RevokeRole</li>
+<li>HasPermission</li>
+<li>CheckActionPermission</li>
+</ul>
+<h3 id="примеры-ролей">Примеры ролей</h3>
+<ul>
+<li>Player;</li>
+<li>Moderator;</li>
+<li>Administrator;</li>
+<li>Developer.</li>
+</ul>
+<h3 id="правила-15">Правила</h3>
+<p>Права проверяются на сервере.</p>
+<p>Клиентский интерфейс не является механизмом авторизации.</p>
+<hr>
+<h1 id="часть-xxii-конфигурация">ЧАСТЬ XXII. КОНФИГУРАЦИЯ</h1>
+<h2 id="38-configuration-manager">38. Configuration Manager</h2>
+<h3 id="назначение-32">Назначение</h3>
+<p>Управление настройками ядра и модулей.</p>
+<h3 id="основные-операции-31">Основные операции</h3>
+<ul>
+<li>LoadConfiguration</li>
+<li>ValidateConfiguration</li>
+<li>GetSetting</li>
+<li>ReloadConfiguration</li>
+<li>SaveConfiguration</li>
+<li>GetConfigurationVersion</li>
+</ul>
+<h3 id="пример-2">Пример</h3>
+<pre><code class="language-json">{
+  &quot;core&quot;: {
+    &quot;server_id&quot;: &quot;downtown-01&quot;
+  },
+  &quot;modules&quot;: {
+    &quot;npc&quot;: true,
+    &quot;dialog&quot;: true,
+    &quot;inventory&quot;: true,
+    &quot;economy&quot;: true,
+    &quot;vehicles&quot;: false,
+    &quot;health&quot;: true
+  },
+  &quot;gameplay&quot;: {
+    &quot;infinite_health&quot;: false,
+    &quot;allow_weapons&quot;: false,
+    &quot;npc_hostility&quot;: false
+  }
+}
+</code></pre>
+<h3 id="правила-16">Правила</h3>
+<p>Настройки должны иметь значения по умолчанию.</p>
+<p>Ошибочная конфигурация не должна незаметно приводить к небезопасному поведению.</p>
+<p>Не все настройки обязаны поддерживать изменение без перезапуска.</p>
+<hr>
+<h1 id="часть-xxiii-ресурсы-и-workshop">ЧАСТЬ XXIII. РЕСУРСЫ И WORKSHOP</h1>
+<h2 id="39-asset-manager">39. Asset Manager</h2>
+<h3 id="назначение-33">Назначение</h3>
+<p>Учёт игровых ресурсов, необходимых клиентам.</p>
+<h3 id="категории-1">Категории</h3>
+<ul>
+<li>карты;</li>
+<li>модели;</li>
+<li>материалы;</li>
+<li>частицы;</li>
+<li>звуки;</li>
+<li>анимации;</li>
+<li>интерфейсные ресурсы.</li>
+</ul>
+<h3 id="основные-операции-32">Основные операции</h3>
+<ul>
+<li>RegisterAssetPack</li>
+<li>ValidateAssetManifest</li>
+<li>GetRequiredAssets</li>
+<li>CheckAssetCompatibility</li>
+<li>GetAssetVersion</li>
+</ul>
+<h3 id="принцип-1">Принцип</h3>
+<p>Сервер определяет необходимые ресурсы.</p>
+<p>Доставка ресурсов клиенту выполняется только через реально поддерживаемые механизмы CS2 и Workshop.</p>
+<h3 id="ограничение-3">Ограничение</h3>
+<p>Workshop не гарантирует произвольную установку клиентского кода или модификацию всех элементов интерфейса.</p>
+<p>Ресурсы и исполняемые клиентские расширения — разные категории.</p>
+<hr>
+<h1 id="часть-xxiv-администрирование">ЧАСТЬ XXIV. АДМИНИСТРИРОВАНИЕ</h1>
+<h2 id="40-administration-system">40. Administration System</h2>
+<h3 id="назначение-34">Назначение</h3>
+<p>Управление игровым миром.</p>
+<h3 id="основные-операции-33">Основные операции</h3>
+<ul>
+<li>KickPlayer</li>
+<li>BanPlayer</li>
+<li>TeleportPlayer</li>
+<li>InspectPlayer</li>
+<li>InspectEntity</li>
+<li>ReloadModuleConfiguration</li>
+<li>GetServerStatus</li>
+<li>GetModuleStatus</li>
+</ul>
+<h3 id="правила-17">Правила</h3>
+<p>Административные действия должны проверять права доступа.</p>
+<p>Критичные действия записываются в журнал.</p>
+<hr>
+<h1 id="часть-xxv-диагностика">ЧАСТЬ XXV. ДИАГНОСТИКА</h1>
+<h2 id="41-diagnostics">41. Diagnostics</h2>
+<h3 id="назначение-35">Назначение</h3>
+<p>Поиск ошибок и контроль производительности.</p>
+<h3 id="основные-операции-34">Основные операции</h3>
+<ul>
+<li>WriteLog</li>
+<li>ReportError</li>
+<li>RecordMetric</li>
+<li>StartTrace</li>
+<li>EndTrace</li>
+<li>GetHealthStatus</li>
+</ul>
+<h3 id="метрики">Метрики</h3>
+<ul>
+<li>количество игроков;</li>
+<li>количество сущностей;</li>
+<li>количество NPC;</li>
+<li>время обработки игрового тика;</li>
+<li>время обработки событий;</li>
+<li>длительность переходов;</li>
+<li>задержка базы данных;</li>
+<li>потребление памяти;</li>
+<li>состояние межсерверного соединения.</li>
+</ul>
+<h3 id="правила-18">Правила</h3>
+<p>Система диагностики не должна блокировать игровой поток медленными операциями.</p>
+<hr>
+<h1 id="часть-xxvi-потоки-и-производительность">ЧАСТЬ XXVI. ПОТОКИ И ПРОИЗВОДИТЕЛЬНОСТЬ</h1>
+<h2 id="42-threading-model">42. Threading Model</h2>
+<h3 id="основное-правило">Основное правило</h3>
+<p>Операции с сущностями движка выполняются только в разрешённом контексте движка.</p>
+<p>Фоновые потоки используются для задач, допускающих параллельное выполнение.</p>
+<p>Например:</p>
+<pre><code class="language-text">                GAME THREAD
+                    │
+                    │ Request
+                    ▼
+                TASK QUEUE
+                    │
+                    ▼
+                WORKER THREAD
+                    │
+                    │ Database / IPC
+                    ▼
+                RESULT QUEUE
+                    │
+                    ▼
+                GAME THREAD
+                    │
+                    ▼
+             APPLY GAME RESULT
+</code></pre>
+<h3 id="требования-1">Требования</h3>
+<ul>
+<li>не блокировать игровой поток ожиданием SQL;</li>
+<li>не обращаться к уничтоженным сущностям;</li>
+<li>проверять актуальность сессии при возврате результата;</li>
+<li>ограничивать очереди задач;</li>
+<li>корректно отменять операции при остановке модуля.</li>
+</ul>
+<hr>
+<h1 id="часть-xxvii-безопасность">ЧАСТЬ XXVII. БЕЗОПАСНОСТЬ</h1>
+<h2 id="43-security-model">43. Security Model</h2>
+<h3 id="основные-угрозы">Основные угрозы</h3>
+<ul>
+<li>подделка игровых действий;</li>
+<li>повторение запросов;</li>
+<li>дублирование предметов;</li>
+<li>дублирование денег;</li>
+<li>конфликт игровых сессий;</li>
+<li>подмена сообщений между серверами;</li>
+<li>злоупотребление административными функциями.</li>
+</ul>
+<h3 id="основные-меры">Основные меры</h3>
+<ol>
+<li>Серверная проверка действий.</li>
+<li>Идентификаторы операций.</li>
+<li>Контроль версий состояния.</li>
+<li>Авторизация межсерверных запросов.</li>
+<li>Ограничение частоты запросов.</li>
+<li>Проверка прав.</li>
+<li>Журнал критичных операций.</li>
+<li>Защита от повторной обработки.</li>
+</ol>
+<hr>
+<h1 id="часть-xxviii-структура-проекта">ЧАСТЬ XXVIII. СТРУКТУРА ПРОЕКТА</h1>
+<h2 id="44-репозиторий">44. Репозиторий</h2>
+<pre><code class="language-text">CS2-OpenWorld/
+├── CMakeLists.txt
+├── ARCHITECTURE.md
+├── CS2 Open World.ru.md
+├── README.md
+├── src/
+│   ├── core/
+│   │   ├── module_manager
+│   │   ├── service_registry
+│   │   ├── event_bus
+│   │   ├── lifecycle_manager
+│   │   └── diagnostics
+│   ├── adapters/
+│   │   ├── metamod/
+│   │   ├── cs2/
+│   │   ├── particle_ui/
+│   │   ├── panorama/
+│   │   └── persistence/
+│   ├── modules/
+│   │   ├── players/
+│   │   ├── world/
+│   │   ├── transfer/
+│   │   ├── npc/
+│   │   ├── interaction/
+│   │   ├── dialog/
+│   │   ├── persistence/
+│   │   ├── audio/
+│   │   ├── inventory/
+│   │   ├── economy/
+│   │   ├── quests/
+│   │   ├── vehicles/
+│   │   ├── health/
+│   │   ├── weapons/
+│   │   ├── social/
+│   │   ├── permissions/
+│   │   └── administration/
+│   ├── services/
+│   │   ├── coordinator/
+│   │   └── messaging/
+│   └── ui/
+│       ├── particle/
+│       ├── panorama/
+│       ├── hud/
+│       └── input/
+├── database/
+│   ├── migrations/
+│   └── schemas/
+├── configs/
+├── assets/
+│   ├── maps/
+│   └── shared/
+├── tests/
+│   ├── unit/
+│   ├── integration/
+│   └── performance/
+└── tools/
+</code></pre>
+<p>Это структура репозитория; C++-файлы подсистем пока являются контрактными заглушками, если явно не указана реализация.</p>
+<p>Конкретные CMake-цели и способы динамической загрузки модулей будут определены после прототипирования ABI и загрузчика.</p>
+<hr>
+<h1 id="часть-xxix-правила-разработки-модулей">ЧАСТЬ XXIX. ПРАВИЛА РАЗРАБОТКИ МОДУЛЕЙ</h1>
+<h2 id="45-контракт-модуля">45. Контракт модуля</h2>
+<p>Каждый модуль должен предоставлять:</p>
+<ul>
+<li>уникальный идентификатор;</li>
+<li>версию;</li>
+<li>описание;</li>
+<li>список зависимостей;</li>
+<li>список предоставляемых сервисов;</li>
+<li>список необходимых сервисов;</li>
+<li>функцию инициализации;</li>
+<li>функцию запуска;</li>
+<li>функцию остановки;</li>
+<li>механизм освобождения ресурсов.</li>
+</ul>
+<h3 id="требования-2">Требования</h3>
+<p>Модуль не должен:</p>
+<ul>
+<li>напрямую обращаться к внутренним данным другого модуля;</li>
+<li>предполагать наличие необязательной зависимости;</li>
+<li>сохранять указатели на уничтоженные сущности;</li>
+<li>выполнять блокирующие операции в игровом потоке;</li>
+<li>самостоятельно управлять жизненным циклом ядра.</li>
+</ul>
+<hr>
+<h1 id="часть-xxx-технические-исследования">ЧАСТЬ XXX. ТЕХНИЧЕСКИЕ ИССЛЕДОВАНИЯ</h1>
+<h2 id="46-что-необходимо-проверить">46. Что необходимо проверить</h2>
+<p>Перед реализацией соответствующих подсистем требуется подтвердить:</p>
+<h3 id="r-001-metamod">R-001. Metamod</h3>
+<ul>
+<li>загрузку ядра;</li>
+<li>регистрацию хуков;</li>
+<li>доступ к необходимым интерфейсам;</li>
+<li>корректную остановку.</li>
+</ul>
+<h3 id="r-002-модульность">R-002. Модульность</h3>
+<ul>
+<li>загрузку дополнительных DLL ядром;</li>
+<li>совместимость ABI;</li>
+<li>передачу интерфейсов;</li>
+<li>безопасное освобождение модулей.</li>
+</ul>
+<h3 id="r-003-ввод">R-003. Ввод</h3>
+<ul>
+<li>доступные серверу действия игрока;</li>
+<li>обработку взаимодействий;</li>
+<li>ограничения на клавиши и мышь;</li>
+<li>поведение Tab.</li>
+</ul>
+<p>Текущий fallback опирается на opt-in клиентские bind’ы и фиксированные серверные действия; он не является автоматическим перехватом ввода. Проверка в живом CS2 и графическое действие карты остаются открытыми.</p>
+<h3 id="r-004-интерфейс">R-004. Интерфейс</h3>
+<ul>
+<li>доступные способы пользовательского HUD;</li>
+<li>particle-меню;</li>
+<li>Panorama;</li>
+<li>совместимость с Workshop;</li>
+<li>ограничения стандартного HUD.</li>
+</ul>
+<h3 id="r-005-межсерверные-переходы">R-005. Межсерверные переходы</h3>
+<ul>
+<li>доступный механизм перенаправления;</li>
+<li>время переподключения;</li>
+<li>загрузку карты;</li>
+<li>восстановление позиции;</li>
+<li>обработку обрывов.</li>
+</ul>
+<h3 id="r-006-npc">R-006. NPC</h3>
+<ul>
+<li>поддерживаемые типы сущностей;</li>
+<li>анимации;</li>
+<li>навигацию;</li>
+<li>поведение;</li>
+<li>производительность.</li>
+</ul>
+<h3 id="r-007-транспорт">R-007. Транспорт</h3>
+<ul>
+<li>физику;</li>
+<li>управление;</li>
+<li>посадку;</li>
+<li>пассажиров;</li>
+<li>синхронизацию;</li>
+<li>межсерверный перенос.</li>
+</ul>
+<h3 id="r-008-производительность">R-008. Производительность</h3>
+<ul>
+<li>память одного сервера;</li>
+<li>стоимость дополнительных процессов;</li>
+<li>максимальное число NPC;</li>
+<li>стоимость пользовательского интерфейса;</li>
+<li>задержки БД и IPC.</li>
+</ul>
+<p>Каждое исследование должно завершаться документом с результатами и подтверждёнными ограничениями.</p>
+<hr>
+<h1 id="часть-xxxi-этапы-реализации">ЧАСТЬ XXXI. ЭТАПЫ РЕАЛИЗАЦИИ</h1>
+<h2 id="47-этап-1-техническая-основа">47. Этап 1 — техническая основа</h2>
+<p>Результат:</p>
+<ul>
+<li>загружается OW Core;</li>
+<li>работает Module Manager;</li>
+<li>загружается тестовый модуль;</li>
+<li>работают сервисы и события;</li>
+<li>доступны журналы ошибок.</li>
+</ul>
+<h2 id="48-этап-2-игроки">48. Этап 2 — игроки</h2>
+<p>Результат:</p>
+<ul>
+<li>создаются сессии;</li>
+<li>загружаются персонажи;</li>
+<li>сохраняется состояние;</li>
+<li>обрабатываются отключения.</li>
+</ul>
+<h2 id="49-этап-3-два-сервера">49. Этап 3 — два сервера</h2>
+<p>Результат:</p>
+<ul>
+<li>работают два процесса CS2;</li>
+<li>работает Coordinator;</li>
+<li>игрок переходит между серверами;</li>
+<li>восстанавливаются позиция и состояние;</li>
+<li>переход переживает типовые сбои.</li>
+</ul>
+<h2 id="50-этап-4-взаимодействия-и-интерфейс">50. Этап 4 — взаимодействия и интерфейс</h2>
+<p>Результат:</p>
+<ul>
+<li>игрок взаимодействует с объектом;</li>
+<li>открывается меню;</li>
+<li>обрабатывается выбор;</li>
+<li>интерфейс закрывается;</li>
+<li>сервер проверяет действие.</li>
+</ul>
+<h2 id="51-этап-5-npc-и-диалоги">51. Этап 5 — NPC и диалоги</h2>
+<p>Результат:</p>
+<ul>
+<li>создаётся NPC;</li>
+<li>игрок начинает диалог;</li>
+<li>воспроизводится доступная озвучка;</li>
+<li>отображаются варианты ответа;</li>
+<li>выбор изменяет состояние задания.</li>
+</ul>
+<h2 id="52-этап-6-игровой-мир">52. Этап 6 — игровой мир</h2>
+<p>Результат:</p>
+<ul>
+<li>работают сектора;</li>
+<li>реализованы переходные зоны;</li>
+<li>сохраняется состояние мира;</li>
+<li>появляются игровые объекты.</li>
+</ul>
+<h2 id="53-этап-7-игровые-системы">53. Этап 7 — игровые системы</h2>
+<p>Результат:</p>
+<ul>
+<li>инвентарь;</li>
+<li>экономика;</li>
+<li>задания;</li>
+<li>правила здоровья;</li>
+<li>правила оружия;</li>
+<li>социальные функции.</li>
+</ul>
+<h2 id="54-этап-8-транспорт">54. Этап 8 — транспорт</h2>
+<p>Результат определяется подтверждёнными возможностями движка.</p>
+<p>Транспорт разрабатывается отдельно, поскольку это одна из наиболее рискованных подсистем.</p>
+<h2 id="55-этап-9-оптимизация">55. Этап 9 — оптимизация</h2>
+<p>Результат:</p>
+<ul>
+<li>нагрузочные тесты;</li>
+<li>профилирование;</li>
+<li>оптимизация NPC;</li>
+<li>оптимизация интерфейса;</li>
+<li>оптимизация сохранений;</li>
+<li>проверка устойчивости нескольких серверов.</li>
+</ul>
+<hr>
+<h1 id="часть-xxxii-критерии-готовности">ЧАСТЬ XXXII. КРИТЕРИИ ГОТОВНОСТИ</h1>
+<h2 id="56-минимальный-рабочий-прототип">56. Минимальный рабочий прототип</h2>
+<p>Прототип считается успешным, если:</p>
+<ol>
+<li>Два сервера CS2 работают одновременно.</li>
+<li>Оба используют OW Core.</li>
+<li>Игрок может подключиться к первому серверу.</li>
+<li>Игрок получает игровую сессию.</li>
+<li>Игрок взаимодействует с NPC.</li>
+<li>Открывается пользовательское меню.</li>
+<li>Игрок выбирает вариант ответа.</li>
+<li>Сервер обрабатывает выбор.</li>
+<li>Состояние персонажа сохраняется.</li>
+<li>Игрок переходит на второй сервер.</li>
+<li>Его состояние восстанавливается.</li>
+<li>Повторный переход не дублирует данные.</li>
+<li>При отключении игрока данные не повреждаются.</li>
+<li>Необязательный модуль можно отключить через конфигурацию.</li>
+<li>Ошибки отражаются в диагностике.</li>
+</ol>
+<hr>
+<h1 id="часть-xxxiii-зафиксированные-решения">ЧАСТЬ XXXIII. ЗАФИКСИРОВАННЫЕ РЕШЕНИЯ</h1>
+<h2 id="57-принятые-решения">57. Принятые решения</h2>
+<p><strong>ADR-001</strong></p>
+<p>Использовать единое OW Core.</p>
+<p><strong>ADR-002</strong></p>
+<p>Основной серверный язык — C++.</p>
+<p><strong>ADR-003</strong></p>
+<p>Основная интеграция с CS2 — Metamod:Source и hl2sdk-cs2.</p>
+<p><strong>ADR-004</strong></p>
+<p>Игровые функции разделяются на модули.</p>
+<p><strong>ADR-005</strong></p>
+<p>Модули взаимодействуют через версионированные интерфейсы.</p>
+<p><strong>ADR-006</strong></p>
+<p>UI отделён от игровой логики.</p>
+<p><strong>ADR-007</strong></p>
+<p>Поддерживается несколько игровых серверов.</p>
+<p><strong>ADR-008</strong></p>
+<p>Состояние персонажей хранится независимо от конкретного процесса CS2.</p>
+<p><strong>ADR-009</strong></p>
+<p>Предпочтительная основная БД — PostgreSQL.</p>
+<p><strong>ADR-010</strong></p>
+<p>Критичные игровые действия проверяются сервером.</p>
+<p><strong>ADR-011</strong></p>
+<p>Первая версия модульной системы не обязана поддерживать горячую выгрузку DLL.</p>
+<p><strong>ADR-012</strong></p>
+<p>Бесшовность переходов, замена HUD и полноценный транспорт остаются исследовательскими задачами до технического подтверждения.</p>
+<p><strong>ADR-013</strong></p>
+<p>Единственное название проекта — CS2 Open World.</p>
+<p><strong>ADR-014</strong></p>
+<p>Particle UI является обязательной подсистемой интерфейса.</p>
+<p><strong>ADR-015</strong></p>
+<p>Основная логика проекта реализуется на C++.</p>
+<p><strong>ADR-016</strong></p>
+<p>Workshop используется для распространения ресурсов.</p>
+<p><strong>ADR-017</strong></p>
+<p>Карты и общие ресурсы распространяются отдельными пакетами.</p>
+<p><strong>ADR-018</strong></p>
+<p>Steam-аутентификация обязательна до предоставления игроку игровой сессии.</p>
+<p><strong>ADR-019</strong></p>
+<p>Ненулевой SteamID не является достаточным подтверждением авторизации; необходимо проверять состояние Steam-аутентификации клиента.</p>
+<p><strong>ADR-020</strong></p>
+<p>Transfer Manager разрабатывается как собственный компонент OW Core.</p>
+<p><strong>ADR-021</strong></p>
+<p>Встроенная мини-СУБД не разрабатывается; долговременное хранилище строится на PostgreSQL.</p>
+<p><strong>ADR-022</strong></p>
+<p>Разработка должна поддерживать запуск одного локального игрового сервера без обязательного отдельного кластера.</p>
+<p><strong>ADR-023</strong></p>
+<p>Реализация межсерверного транспорта исследуется на основе существующих решений и протоколов до выбора реализации.</p>
+<p><strong>ADR-024 — открыто</strong></p>
+<p>Конкретная библиотека Particle UI выбирается после рабочего прототипа на Metamod:Source и hl2sdk-cs2.</p>
+<p><strong>ADR-025 — открыто</strong></p>
+<p>Автоматический переход между серверами требует проверки в игре; команда клиенту <code>connect</code> является только кандидатом на прототип, а не гарантированной возможностью.</p>
+<p><strong>ADR-026 — открыто</strong></p>
+<p>Полная замена стандартного HUD требует отдельной проверки. Простые HUD-элементы следует реализовывать в Panorama, если это возможно штатными средствами.</p>
+<hr>
+<h1 id="часть-xxxiv-непринятые-решения">ЧАСТЬ XXXIV. НЕПРИНЯТЫЕ РЕШЕНИЯ</h1>
+<h2 id="58-открытые-вопросы">58. Открытые вопросы</h2>
+<p>Следующие решения пока не утверждены:</p>
+<ol>
+<li>Точный механизм загрузки дополнительных DLL.</li>
+<li>Конкретный ABI модулей.</li>
+<li>Формат межпроцессных сообщений.</li>
+<li>Конкретный транспорт сообщений.</li>
+<li>Точная реализация пользовательского HUD в пределах поддерживаемых механизмов Panorama.</li>
+<li>Конкретная библиотека Particle UI и её C++-адаптер.</li>
+<li>Механизм обработки мыши.</li>
+<li>Подтверждённый механизм перенаправления между серверами.</li>
+<li>Формат пользовательских карт.</li>
+<li>Реализация транспорта.</li>
+<li>Реализация навигации NPC.</li>
+<li>Возможность скрытия стандартного табло.</li>
+<li>Возможность полноценной замены HUD.</li>
+<li>Способ доставки пользовательских UI-ресурсов.</li>
+<li>Максимальное число игровых серверов на одной машине.</li>
+</ol>
+<p>Каждый вопрос должен быть закрыт отдельным техническим решением после проверки.</p>
+<hr>
+<h1 id="заключение">ЗАКЛЮЧЕНИЕ</h1>
+<p>CS2 Open World строится как модульная многосерверная система.</p>
+<p>OW Core предоставляет общую инфраструктуру.</p>
+<p>Gameplay-модули реализуют игровую логику.</p>
+<p>UI-адаптеры отвечают за отображение интерфейсов.</p>
+<p>Coordinator управляет игровыми серверами и владением сессиями.</p>
+<p>Persistence отвечает за долговременное состояние.</p>
+<p>World Manager объединяет отдельные карты в единый логический мир.</p>
+<p>Transfer Manager организует переходы между серверами.</p>
+<p>Все подсистемы должны взаимодействовать через явно определённые интерфейсы и сообщения.</p>
+<p>Главная цель архитектуры — обеспечить возможность расширять игровой мир, заменять отдельные реализации и развивать проект без необходимости переписывать всю систему.</p>
+
+    </main>
+    <footer>CS2 Open World · AGPL-3.0-only</footer>
+</body>
+</html>

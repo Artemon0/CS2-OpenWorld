@@ -1,1 +1,82 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Features — CS2 Open World</title><link rel="stylesheet" href="style.css"><script defer src="script.js"></script></head><body><header><a class="brand" href="index.html">CS2 <i>Open World</i></a><nav><a href="index.html" data-i18n="home">Home</a><a href="architecture.html" data-i18n="arch">Architecture</a><a href="setup.html" data-i18n="setup">Setup</a><a href="features.html" data-i18n="features">Features</a><a href="development.html" data-i18n="dev">Development</a></nav><a class="repo-link" href="https://github.com/Artemon0/CS2-OpenWorld" target="_blank" rel="noopener" data-i18n="repoLink">GitHub ↗</a><button id="language-toggle">RU</button></header><main class="doc"><label data-i18n="capabilities">CAPABILITIES</label><h1 data-i18n="featuresTitle">What works today</h1><p class="lead" data-i18n="featuresIntro">Implemented, experimental and planned work are marked separately to set clear expectations.</p><div class="cards status"><article><b data-i18n="implemented">IMPLEMENTED</b><h3 data-i18n="player">Player & character</h3><p data-i18n="playerD">Engine-confirmed Steam auth; async settings and character loading; list, create and select characters.</p></article><article><b data-i18n="implemented">IMPLEMENTED</b><h3 data-i18n="routing">Cluster routing</h3><p data-i18n="routingD">Persistent server assignment, <code>!go &lt;server_id&gt;</code> redirect and configured XY zone routing. Redirect means reconnect.</p></article><article><b data-i18n="implemented">IMPLEMENTED</b><h3 data-i18n="data">Data & commands</h3><p data-i18n="dataD">PostgreSQL character, settings, inventory snapshot and wallet services.</p></article><article><b data-i18n="implemented">IMPLEMENTED</b><h3 data-i18n="ui">Text interface</h3><p data-i18n="uiD"><code>!hud</code> text HUD, notifications and map name command.</p></article><article><b class="experimental" data-i18n="experimental">EXPERIMENTAL</b><h3 data-i18n="particle">Particle menu</h3><p data-i18n="particleD">Opt-in runtime; Workshop resources and live-game validation required. Off by default.</p></article><article><b class="planned" data-i18n="planned">PLANNED</b><h3 data-i18n="world">World gameplay</h3><p data-i18n="worldD">Seamless transfers, position restoration, NPCs, quests, vehicles, full inventory gameplay and graphical map panels.</p></article></div><h2 data-i18n="commands">Current player commands</h2><ul><li><code>!character list|create &lt;name&gt;|select &lt;id&gt;</code></li><li><code>!inventory</code> prints the stored snapshot to client console.</li><li><code>!balance</code> displays the selected character wallet.</li><li><code>!hud [on|off|toggle]</code> toggles text HUD.</li><li><code>!go &lt;server_id&gt;</code> saves route and reconnects player.</li></ul><p data-i18n="featureLinks">See <a href="setup.html">setup</a>, <a href="architecture.html">architecture</a> and <a href="https://github.com/Artemon0/CS2-OpenWorld/blob/main/README.md">the repository README</a>.</p></main><footer>CS2 Open World · AGPL-3.0-only</footer></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="description" content="CS2 Open World Features — What works today, implemented, experimental and planned functionality.">
+    <title>Features — CS2 Open World</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="style.css">
+    <script defer src="script.js"></script>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23101312'/><rect x='6' y='6' width='20' height='20' rx='3' fill='none' stroke='%23b9ef71' stroke-width='2'/><path d='M10 16h12M16 10v12' stroke='%23b9ef71' stroke-width='2' stroke-linecap='round'/></svg>">
+</head>
+<body>
+    <header>
+        <a class="brand" href="index.html">CS2 <i>Open World</i></a>
+        <nav aria-label="Main navigation">
+            <a href="index.html" data-i18n="home">Home</a>
+            <a href="architecture.html" data-i18n="arch">Architecture</a>
+            <a href="setup.html" data-i18n="setup">Setup</a>
+            <a href="features.html" data-i18n="features">Features</a>
+            <a href="development.html" data-i18n="dev">Development</a>
+            <a href="specification.html" data-i18n="specNav">Specification</a>
+            <a href="map-authoring.html" data-i18n="mapNav">Map Authoring</a>
+        </nav>
+        <a class="repo-link" href="https://github.com/Artemon0/CS2-OpenWorld" target="_blank" rel="noopener" data-i18n="repoLink">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
+            GitHub
+        </a>
+        <button type="button" id="language-toggle" aria-label="Switch language">RU</button>
+    </header>
+    <main class="doc">
+        <label data-i18n="capabilities">CAPABILITIES</label>
+        <h1 data-i18n="featuresTitle">What works today</h1>
+        <p class="lead" data-i18n="featuresIntro">Implemented, experimental and planned work are marked separately to set clear expectations.</p>
+
+        <div class="cards status">
+            <article>
+                <b class="implemented" data-i18n="implemented">IMPLEMENTED</b>
+                <h3 data-i18n="player">Player & character</h3>
+                <p data-i18n="playerD">Engine-confirmed Steam auth; async settings and character loading; list, create and select characters.</p>
+            </article>
+            <article>
+                <b class="implemented" data-i18n="implemented">IMPLEMENTED</b>
+                <h3 data-i18n="routing">Cluster routing</h3>
+                <p data-i18n="routingD">Persistent server assignment, <code>!go <server_id></code> redirect and configured XY zone routing. Redirect means reconnect.</p>
+            </article>
+            <article>
+                <b class="implemented" data-i18n="implemented">IMPLEMENTED</b>
+                <h3 data-i18n="data">Data & commands</h3>
+                <p data-i18n="dataD">PostgreSQL character, settings, inventory snapshot and wallet services.</p>
+            </article>
+            <article>
+                <b class="implemented" data-i18n="implemented">IMPLEMENTED</b>
+                <h3 data-i18n="ui">Text interface</h3>
+                <p data-i18n="uiD"><code>!hud</code> text HUD, notifications and map name command.</p>
+            </article>
+            <article>
+                <b class="experimental" data-i18n="experimental">EXPERIMENTAL</b>
+                <h3 data-i18n="particle">Particle menu</h3>
+                <p data-i18n="particleD">Opt-in runtime; Workshop resources and live-game validation required. Off by default.</p>
+            </article>
+            <article>
+                <b class="planned" data-i18n="planned">PLANNED</b>
+                <h3 data-i18n="world">World gameplay</h3>
+                <p data-i18n="worldD">Seamless transfers, position restoration, NPCs, quests, vehicles, full inventory gameplay and graphical map panels.</p>
+            </article>
+        </div>
+
+        <h2 data-i18n="commands">Current player commands</h2>
+        <ul>
+            <li><code>!character list|create <name>|select <id></code></li>
+            <li><code>!inventory</code> prints the stored snapshot to client console.</li>
+            <li><code>!balance</code> displays the selected character wallet.</li>
+            <li><code>!hud [on|off|toggle]</code> toggles text HUD.</li>
+            <li><code>!go <server_id></code> saves route and reconnects player.</li>
+        </ul>
+        <p data-i18n="featureLinks">See <a href="setup.html">setup</a>, <a href="architecture.html">architecture</a> and <a href="https://github.com/Artemon0/CS2-OpenWorld/blob/main/README.md">the repository README</a>.</p>
+    </main>
+    <footer>CS2 Open World · AGPL-3.0-only</footer>
+</body>
+</html>

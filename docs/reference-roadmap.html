@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="description" content="CS2 Open World Architecture — Runtime layers, modules, persistence and boundaries.">
+    <title>Roadmap — CS2 Open World</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="style.css">
+    <script defer src="script.js"></script>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23101312'/><rect x='6' y='6' width='20' height='20' rx='3' fill='none' stroke='%23b9ef71' stroke-width='2'/><path d='M10 16h12M16 10v12' stroke='%23b9ef71' stroke-width='2' stroke-linecap='round'/></svg>">
+</head>
+<body>
+    <header>
+        <a class="brand" href="index.html">CS2 <i>Open World</i></a>
+        <nav aria-label="Main navigation">
+            <a href="index.html" data-i18n="home">Home</a>
+            <a href="architecture.html" data-i18n="arch">Architecture</a>
+            <a href="setup.html" data-i18n="setup">Setup</a>
+            <a href="features.html" data-i18n="features">Features</a>
+            <a href="development.html" data-i18n="dev">Development</a>
+            <a href="specification.html" data-i18n="specNav">Specification</a>
+            <a href="map-authoring.html" data-i18n="mapNav">Map Authoring</a>
+        </nav>
+        <a class="repo-link" href="https://github.com/Artemon0/CS2-OpenWorld" target="_blank" rel="noopener" data-i18n="repoLink">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
+            GitHub
+        </a>
+        <button type="button" id="language-toggle" aria-label="Switch language">RU</button>
+    </header>
+    <main class="doc reference-doc">
+        <p class="reference-back"><a href="reference.html">← All documents / Все документы</a></p>
+        <div class="reference-source">docs/ROADMAP.md</div>
+<h1 id="roadmap">Roadmap</h1>
+<p>This file replaces the placeholder headers that used to live under <code>src/modules/</code> and
+<code>src/services/</code>. Each of those files contained nothing but <code>class X;</code>, was included by nothing, and
+made the module layout look more complete than it is. The intent is recorded here instead.</p>
+<h2 id="planned-modules-not-implemented">Planned modules (not implemented)</h2>
+<table>
+<thead>
+<tr>
+<th>Area</th>
+<th>Planned responsibility</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>administration</code></td>
+<td>Admin commands, bans, audit trail</td>
+</tr>
+<tr>
+<td><code>audio</code></td>
+<td>Server-side sound events and music zones</td>
+</tr>
+<tr>
+<td><code>dialog</code></td>
+<td>NPC dialogue trees and scripted conversations</td>
+</tr>
+<tr>
+<td><code>health</code></td>
+<td>Bleeding, limb damage, medical items</td>
+</tr>
+<tr>
+<td><code>interaction</code></td>
+<td>Use/E prompts on world entities</td>
+</tr>
+<tr>
+<td><code>npc</code></td>
+<td>NPC behaviour trees and spawn management</td>
+</tr>
+<tr>
+<td><code>permissions</code></td>
+<td>Role/permission model on top of Steam auth</td>
+</tr>
+<tr>
+<td><code>players</code></td>
+<td>Steam auth handshake and per-player session state (currently in <code>src/core/plugin.cpp</code>)</td>
+</tr>
+<tr>
+<td><code>quests</code></td>
+<td>Quest definitions, progress, rewards</td>
+</tr>
+<tr>
+<td><code>social</code></td>
+<td>Parties, friends, chat channels</td>
+</tr>
+<tr>
+<td><code>vehicles</code></td>
+<td>Vehicle entities, seats, fuel</td>
+</tr>
+<tr>
+<td><code>weapons</code></td>
+<td>Weapon economy extensions beyond CS2 defaults</td>
+</tr>
+<tr>
+<td><code>world</code></td>
+<td>Sector/streaming management and entity budgets</td>
+</tr>
+<tr>
+<td><code>services/coordinator</code></td>
+<td>Cross-server coordinator RPC</td>
+</tr>
+<tr>
+<td><code>services/messaging</code></td>
+<td>Message transport abstraction between cluster nodes</td>
+</tr>
+<tr>
+<td><code>core/config_manager</code></td>
+<td>Hot reload of <code>openworld.ini</code> (today the config is read once at load)</td>
+</tr>
+<tr>
+<td><code>core/lifecycle_manager</code></td>
+<td>Explicit startup/shutdown ordering (today <code>ModuleManager</code> does it)</td>
+</tr>
+<tr>
+<td><code>core/diagnostics</code></td>
+<td>Structured diagnostics dump for support tickets</td>
+</tr>
+</tbody>
+</table>
+<h2 id="text-output">Text output</h2>
+<p>For a reply to one player, use <code>OpenWorldPlugin::SendPlayerText(slot, channel, text)</code> in
+<code>src/core/plugin.cpp</code>. It sends through the UI manager (respecting the configured adapter) and falls
+back to the engine console if that path is unavailable. For a broadcast chat announcement,
+<code>utils::CPrintChatAll(format, ...)</code> sends to all players. <code>utils::ClientPrintFilter</code> is the lower-level helper for custom recipient filters. The dedicated
+chat-helper API was removed because it had no callers.</p>
+<h2 id="known-gaps-in-the-current-implementation">Known gaps in the current implementation</h2>
+<ul>
+<li><code>src/core/plugin.cpp</code> is a single large translation unit; the chat command router, route
+coordinator, character/settings coordinators, and hook binder are natural extraction points.</li>
+<li>The <code>Offsets</code> block in gamedata does not define <code>Touch</code>, <code>StartTouch</code>, <code>EndTouch</code> and
+<code>CollisionRulesChanged</code>; the corresponding <code>CBaseEntity</code> helpers are unused today and degrade to a
+no-op. <code>tools/update_offsets.py --check --strict</code> reports them.</li>
+<li>Character, inventory, and wallet data are never cached; every read goes to PostgreSQL. That is
+correct but may need an explicit read-through cache once player counts grow.</li>
+<li>Event delivery is single-threaded (game thread). <code>EventBus::Publish</code> is synchronous and rejects
+re-entrant cycles past <code>MaxPublishDepth</code>; <code>Enqueue</code>/<code>DispatchPendingEvents</code> (drained once per
+<code>OnGameFrame</code>) deliver owned copies for self-publishing listeners. A listener that unbinds itself
+from inside its own callback skips the remaining listeners of the same publish on purpose; a
+listener must not unbind another one mid-publish. Cross-thread publishing is unsupported.</li>
+<li><code>TransferManager</code> is purely in-process with no locks; call it from the game thread only. It is the
+validation state machine, not the cross-server coordinator: reservation, tokens, ownership
+fencing, and the destination arrival handshake are still open (ADR-025).</li>
+</ul>
+
+    </main>
+    <footer>CS2 Open World · AGPL-3.0-only</footer>
+</body>
+</html>

@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="description" content="CS2 Open World Architecture — Runtime layers, modules, persistence and boundaries.">
+    <title>Architecture overview — CS2 Open World</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="style.css">
+    <script defer src="script.js"></script>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23101312'/><rect x='6' y='6' width='20' height='20' rx='3' fill='none' stroke='%23b9ef71' stroke-width='2'/><path d='M10 16h12M16 10v12' stroke='%23b9ef71' stroke-width='2' stroke-linecap='round'/></svg>">
+</head>
+<body>
+    <header>
+        <a class="brand" href="index.html">CS2 <i>Open World</i></a>
+        <nav aria-label="Main navigation">
+            <a href="index.html" data-i18n="home">Home</a>
+            <a href="architecture.html" data-i18n="arch">Architecture</a>
+            <a href="setup.html" data-i18n="setup">Setup</a>
+            <a href="features.html" data-i18n="features">Features</a>
+            <a href="development.html" data-i18n="dev">Development</a>
+            <a href="specification.html" data-i18n="specNav">Specification</a>
+            <a href="map-authoring.html" data-i18n="mapNav">Map Authoring</a>
+        </nav>
+        <a class="repo-link" href="https://github.com/Artemon0/CS2-OpenWorld" target="_blank" rel="noopener" data-i18n="repoLink">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
+            GitHub
+        </a>
+        <button type="button" id="language-toggle" aria-label="Switch language">RU</button>
+    </header>
+    <main class="doc reference-doc">
+        <p class="reference-back"><a href="reference.html">← All documents / Все документы</a></p>
+        <div class="reference-source">ARCHITECTURE.md</div>
+<h1 id="architecture-overview">Architecture overview</h1>
+<p>CS2 Open World is a server-authoritative Counter-Strike 2 plugin built with C++,
+Metamod:Source, and the CS2 HL2SDK. Its detailed design specification is still
+available in <a href="reference-specification-ru.html">Russian</a>; this document summarizes
+the current architecture and implementation boundaries in English.</p>
+<h2 id="design-principles">Design principles</h2>
+<ul>
+<li><strong>Server authority:</strong> the server owns gameplay state. Client input is a
+request, not proof that a player owns an item, balance, or completed action.</li>
+<li><strong>Modularity:</strong> gameplay features are separate modules connected through
+explicit services and events.</li>
+<li><strong>Persistence boundaries:</strong> modules use persistence interfaces rather than
+issuing SQL directly.</li>
+<li><strong>Safe engine lifetimes:</strong> long-lived state should use stable identifiers
+and validated handles instead of retaining raw engine pointers.</li>
+<li><strong>UI independence:</strong> gameplay logic should not depend on a particular
+rendering mechanism.</li>
+</ul>
+<h2 id="runtime-layers">Runtime layers</h2>
+<pre><code class="language-text">Counter-Strike 2
+  Metamod:Source
+    OW Core
+      module manager, event bus, service registry, configuration
+      player lifecycle, engine adapters, diagnostics
+    Gameplay modules
+      character, transfer, inventory, economy
+    Adapters
+      PostgreSQL, text UI, input, optional particle menu
+</code></pre>
+<p>The core owns plugin lifecycle and wires adapters and modules together.
+Modules publish and consume typed events and versioned service interfaces.
+The persistence adapter centralizes parameterized database operations.</p>
+<h2 id="current-implementation">Current implementation</h2>
+<ul>
+<li><code>src/core/</code> contains the Metamod lifecycle, module management, configuration,
+event bus, and service registry.</li>
+<li><code>src/modules/character/</code> manages character listing, creation, and selection.</li>
+<li><code>src/modules/transfer/</code> implements route assignment and reconnect-based
+server transitions. It does not preserve runtime player state across servers.</li>
+<li><code>src/modules/inventory/</code> and <code>src/modules/economy/</code> expose versioned services
+for inventory snapshots and wallet operations. Gameplay acquisition and
+mutation flows remain incomplete.</li>
+<li><code>src/adapters/persistence/</code> provides PostgreSQL operations. Player settings
+have a small process-local cache; PostgreSQL remains the source of truth.</li>
+<li><code>src/ui/</code> and <code>src/adapters/panorama/</code> currently provide text-based
+notifications and HUD output. They do not create arbitrary Panorama panels.</li>
+<li>Particle UI is experimental, requires Workshop resources, and is disabled by
+default.</li>
+</ul>
+<h2 id="server-clusters">Server clusters</h2>
+<p>Each server is configured with a server ID, a shared list of server endpoints,
+and optional XY map zones. In cluster mode, PostgreSQL stores player-to-server
+affinity. <code>!go &lt;server_id&gt;</code> saves the destination before sending a CS2
+<code>connect</code> command. This causes a reconnect; it is not seamless transfer and
+does not carry position, inventory mutations, or other runtime state.</p>
+<p>All servers in a cluster must use the same environment, routing settings,
+server list, and PostgreSQL database. The routing migration must be applied
+before enabling affinity. Unknown or unavailable destinations fail closed.</p>
+<h2 id="persistence-and-threading">Persistence and threading</h2>
+<p>PostgreSQL is the source of truth for persistent player and world data.
+Player-settings reads use a bounded, process-local cache only. Character,
+inventory, balance, and transfer data are not served from that cache.
+Database work that may block is performed outside the game thread; results
+that affect engine state are applied on the game thread after validating the
+player session.</p>
+<p>The Redis/LRU/warmup fallback sources are experimental and excluded from the
+default build. They are not required for normal login or routing.</p>
+<h2 id="known-boundaries">Known boundaries</h2>
+<p>The plugin does not yet implement seamless transfers, transfer snapshots,
+position restoration, automatic portal triggers, NPCs, quests, vehicles, or a
+complete gameplay inventory. See <a href="reference-setup.html">SETUP.md</a> for deployment details
+and the <a href="reference-specification-ru.html">Russian design specification</a> for the full
+planned architecture.</p>
+
+    </main>
+    <footer>CS2 Open World · AGPL-3.0-only</footer>
+</body>
+</html>

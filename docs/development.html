@@ -1,1 +1,66 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Development — CS2 Open World</title><link rel="stylesheet" href="style.css"><script defer src="script.js"></script></head><body><header><a class="brand" href="index.html">CS2 <i>Open World</i></a><nav><a href="index.html" data-i18n="home">Home</a><a href="architecture.html" data-i18n="arch">Architecture</a><a href="setup.html" data-i18n="setup">Setup</a><a href="features.html" data-i18n="features">Features</a><a href="development.html" data-i18n="dev">Development</a></nav><a class="repo-link" href="https://github.com/Artemon0/CS2-OpenWorld" target="_blank" rel="noopener" data-i18n="repoLink">GitHub ↗</a><button id="language-toggle">RU</button></header><main class="doc"><label data-i18n="contributors">CONTRIBUTORS</label><h1 data-i18n="devTitle">Development guide</h1><p class="lead" data-i18n="devIntro">A map of the source tree and constraints that keep new features compatible with the CS2 server runtime.</p><h2 data-i18n="repo">Repository map</h2><ul><li><code>src/core/</code> — Metamod entry point, module lifecycle, services and events.</li><li><code>src/modules/</code> — gameplay and persistence coordination.</li><li><code>src/adapters/</code> — engine, database and UI transport integration.</li><li><code>src/ui/</code> — UI state, HUD, input and particle menu.</li><li><code>database/migrations/</code> — ordered PostgreSQL schema changes.</li><li><code>gamedata/</code> — engine offsets and signatures.</li><li><code>tests/</code> — unit, integration and performance test sources.</li></ul><h2 data-i18n="rules">Implementation rules</h2><ul><li data-i18n="rule1">C++20; 64-bit MSVC on Windows or Clang on Linux.</li><li data-i18n="rule2">Exceptions are disabled in plugin and test targets. Report failures via return values, flags or optional results.</li><li data-i18n="rule3">Parameterize database operations and run them off the game thread; validate session before applying async results.</li><li data-i18n="rule4">Add schema changes as numbered migrations; PostgreSQL remains the source of truth.</li><li data-i18n="rule5">Use stable IDs and validated handles for state that outlives engine callbacks.</li></ul><h2 data-i18n="verify">Build & verify</h2><p data-i18n="verifyD">Follow <a href="setup.html">build instructions</a>. Before release, verify gamedata against target server binaries with <code>tools/update_offsets.py</code>. See <a href="https://github.com/Artemon0/CS2-OpenWorld/blob/main/tests/unit/README.md">unit tests</a> and <a href="https://github.com/Artemon0/CS2-OpenWorld/blob/main/tests/integration/README.md">integration tests</a>.</p><h2 data-i18n="roadmap">Roadmap & design</h2><p data-i18n="roadmapD">Known gaps and planned modules live in <a href="https://github.com/Artemon0/CS2-OpenWorld/blob/main/docs/ROADMAP.md">ROADMAP.md</a>. Read the <a href="https://github.com/Artemon0/CS2-OpenWorld/blob/main/ARCHITECTURE.md">architecture overview</a> and <a href="https://github.com/Artemon0/CS2-OpenWorld/blob/main/CS2%20Open%20World.ru.md">full Russian specification</a>.</p></main><footer>CS2 Open World · AGPL-3.0-only</footer></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="description" content="CS2 Open World Development — Repository map, build workflow and implementation rules.">
+    <title>Development — CS2 Open World</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="style.css">
+    <script defer src="script.js"></script>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23101312'/><rect x='6' y='6' width='20' height='20' rx='3' fill='none' stroke='%23b9ef71' stroke-width='2'/><path d='M10 16h12M16 10v12' stroke='%23b9ef71' stroke-width='2' stroke-linecap='round'/></svg>">
+</head>
+<body>
+    <header>
+        <a class="brand" href="index.html">CS2 <i>Open World</i></a>
+        <nav aria-label="Main navigation">
+            <a href="index.html" data-i18n="home">Home</a>
+            <a href="architecture.html" data-i18n="arch">Architecture</a>
+            <a href="setup.html" data-i18n="setup">Setup</a>
+            <a href="features.html" data-i18n="features">Features</a>
+            <a href="development.html" data-i18n="dev">Development</a>
+            <a href="specification.html" data-i18n="specNav">Specification</a>
+            <a href="map-authoring.html" data-i18n="mapNav">Map Authoring</a>
+        </nav>
+        <a class="repo-link" href="https://github.com/Artemon0/CS2-OpenWorld" target="_blank" rel="noopener" data-i18n="repoLink">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
+            GitHub
+        </a>
+        <button type="button" id="language-toggle" aria-label="Switch language">RU</button>
+    </header>
+    <main class="doc">
+        <label data-i18n="contributors">CONTRIBUTORS</label>
+        <h1 data-i18n="devTitle">Development guide</h1>
+        <p class="lead" data-i18n="devIntro">A map of the source tree and constraints that keep new features compatible with the CS2 server runtime.</p>
+
+        <h2 data-i18n="repo">Repository map</h2>
+        <ul>
+            <li><code>src/core/</code> — Metamod entry point, module lifecycle, services and events.</li>
+            <li><code>src/modules/</code> — gameplay and persistence coordination.</li>
+            <li><code>src/adapters/</code> — engine, database and UI transport integration.</li>
+            <li><code>src/ui/</code> — UI state, HUD, input and particle menu.</li>
+            <li><code>database/migrations/</code> — ordered PostgreSQL schema changes.</li>
+            <li><code>gamedata/</code> — engine offsets and signatures.</li>
+            <li><code>tests/</code> — unit, integration and performance test sources.</li>
+        </ul>
+
+        <h2 data-i18n="rules">Implementation rules</h2>
+        <ul>
+            <li data-i18n="rule1">C++20; 64-bit MSVC on Windows or Clang on Linux.</li>
+            <li data-i18n="rule2">Exceptions are disabled in plugin and test targets. Report failures via return values, flags or optional results.</li>
+            <li data-i18n="rule3">Parameterize database operations and run them off the game thread; validate session before applying async results.</li>
+            <li data-i18n="rule4">Add schema changes as numbered migrations; PostgreSQL remains the source of truth.</li>
+            <li data-i18n="rule5">Use stable IDs and validated handles for state that outlives engine callbacks.</li>
+        </ul>
+
+        <h2 data-i18n="verify">Build & verify</h2>
+        <p data-i18n="verifyD">Follow <a href="setup.html">build instructions</a>. Before release, verify gamedata against target server binaries with <code>tools/update_offsets.py</code>. See <a href="https://github.com/Artemon0/CS2-OpenWorld/blob/main/tests/unit/README.md">unit tests</a> and <a href="https://github.com/Artemon0/CS2-OpenWorld/blob/main/tests/integration/README.md">integration tests</a>.</p>
+
+        <h2 data-i18n="roadmap">Roadmap & design</h2>
+        <p data-i18n="roadmapD">Known gaps and planned modules live in <a href="https://github.com/Artemon0/CS2-OpenWorld/blob/main/docs/ROADMAP.md">ROADMAP.md</a>. Read the <a href="https://github.com/Artemon0/CS2-OpenWorld/blob/main/ARCHITECTURE.md">architecture overview</a> and <a href="https://github.com/Artemon0/CS2-OpenWorld/blob/main/CS2%20Open%20World.ru.md">full Russian specification</a>.</p>
+        <aside><b>Полная версия документа / Full document</b><a href="reference.html">Открыть документ →</a> · <a href="reference.html">Все документы</a></aside>
+    </main>
+    <footer>CS2 Open World · AGPL-3.0-only</footer>
+</body>
+</html>

@@ -1,54 +1,93 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="description" content="CS2 Open World — A persistent world across Counter-Strike 2 servers. Server-authoritative plugin built with C++, Metamod:Source and the CS2 HL2SDK.">
     <title>CS2 Open World — Docs</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="style.css">
     <script defer src="script.js"></script>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23101312'/><rect x='6' y='6' width='20' height='20' rx='3' fill='none' stroke='%23b9ef71' stroke-width='2'/><path d='M10 16h12M16 10v12' stroke='%23b9ef71' stroke-width='2' stroke-linecap='round'/></svg>">
 </head>
-
 <body>
-    <header><a class="brand" href="index.html">CS2 <i>Open World</i></a>
-        <nav><a href="index.html" data-i18n="home">Home</a><a href="architecture.html"
-                data-i18n="arch">Architecture</a><a href="setup.html" data-i18n="setup">Setup</a><a href="features.html"
-                data-i18n="features">Features</a><a href="development.html" data-i18n="dev">Development</a></nav><a class="repo-link" href="https://github.com/Artemon0/CS2-OpenWorld" target="_blank" rel="noopener" data-i18n="repoLink">GitHub ↗</a><button type="button"
-            id="language-toggle">RU</button>
+    <header>
+        <a class="brand" href="index.html">CS2 <i>Open World</i></a>
+        <nav aria-label="Main navigation">
+            <a href="index.html" data-i18n="home">Home</a>
+            <a href="architecture.html" data-i18n="arch">Architecture</a>
+            <a href="setup.html" data-i18n="setup">Setup</a>
+            <a href="features.html" data-i18n="features">Features</a>
+            <a href="development.html" data-i18n="dev">Development</a>
+            <a href="specification.html" data-i18n="specNav">Specification</a>
+            <a href="map-authoring.html" data-i18n="mapNav">Map Authoring</a>
+        </nav>
+        <a class="repo-link" href="https://github.com/Artemon0/CS2-OpenWorld" target="_blank" rel="noopener" data-i18n="repoLink">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
+            GitHub
+        </a>
+        <button type="button" id="language-toggle" aria-label="Switch language">RU</button>
     </header>
     <main>
-        <section class="hero"><label data-i18n="eyebrow">PROJECT DOCUMENTATION</label>
-            <h1 data-i18n="title">A persistent world across CS2 servers.</h1>
-            <p class="lead" data-i18n="intro">CS2 Open World is a server-authoritative Counter-Strike 2 plugin built
-                with C++, Metamod:Source and the CS2 HL2SDK. Learn what works today, how the pieces fit together, and
-                how to run it.</p><a class="button" href="setup.html" data-i18n="start">Get started →</a>
+        <section class="hero" aria-labelledby="hero-title">
+            <div class="hero-copy">
+                <div class="hero-kicker"><span class="status-dot"></span><span data-i18n="eyebrow">PROJECT DOCUMENTATION</span></div>
+                <h1 id="hero-title" data-i18n="title">A persistent world across CS2 servers.</h1>
+                <p class="lead" data-i18n="intro">CS2 Open World is a server-authoritative Counter-Strike 2 plugin built with C++, Metamod:Source and the CS2 HL2SDK. Learn what works today, how the pieces fit together, and how to run it.</p>
+                <div class="hero-actions"><a class="button" href="setup.html" data-i18n="start">Get started →</a><a class="hero-secondary" href="architecture.html" data-i18n="archT">Architecture</a></div>
+            </div>
+            <div class="hero-art" aria-hidden="true">
+                <div class="art-top"><span>OPEN WORLD / 01</span><span>CS2</span></div>
+                <svg viewBox="0 0 460 430" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <g stroke="currentColor" stroke-width="1"><path d="M-40 284 198 73 503 244 262 461Z"/><path d="M-11 306 201 117 463 263 250 453"/><path d="M24 327 205 162 420 283 238 448"/><path d="M57 345 207 207 377 303 226 441"/><path d="M95 365 210 252 332 323 215 431"/><path d="M130 385 212 298 289 344 202 425"/><path d="M166 405 215 344 246 364 192 418"/><path d="M78 179 369 343M122 140 413 304M166 101 458 265M30 221l291 165M-18 264l291 165"/></g>
+                    <path class="map-route" d="m66 345 85-77 52 29 91-82 78 44"/><circle class="map-point" cx="151" cy="268" r="5"/><circle class="map-point" cx="294" cy="215" r="5"/><circle class="map-point" cx="372" cy="259" r="5"/>
+                    <g class="map-building"><path d="m145 177 54-48 46 26-54 48z"/><path d="m145 177v31l46 26v-31M191 234l54-48v-31"/><path d="m265 245 46-41 39 22-46 41z"/><path d="m265 245v37l39 22v-37M304 304l46-41v-37"/></g>
+                </svg>
+                <div class="art-bottom"><span>SERVER-SIDE<br>WORLD SYSTEMS</span><span>01 — 04<br>DOCUMENTATION</span></div>
+            </div>
         </section>
-        <section><label data-i18n="sections">DOCUMENTATION</label>
-            <h2 data-i18n="find">Explore the project</h2>
-            <div class="cards"><a href="architecture.html"><b>01</b>
+
+        <section class="explore" aria-labelledby="sections-title">
+            <div class="section-heading"><div><label data-i18n="sections">DOCUMENTATION</label>
+            <h2 id="sections-title" data-i18n="find">Explore the project</h2></div><span class="section-index">01 / 04</span></div>
+            <div class="cards">
+                <a href="architecture.html">
+                    <b>01</b>
                     <h3 data-i18n="archT">Architecture</h3>
                     <p data-i18n="archD">Runtime layers, modules, persistence and boundaries.</p>
-                </a><a href="setup.html"><b>02</b>
-                    <h3 data-i18n="setupT">Setup &amp; deployment</h3>
+                    <span class="card-arrow" data-i18n="readMore">Read more →</span>
+                </a>
+                <a href="setup.html">
+                    <b>02</b>
+                    <h3 data-i18n="setupT">Setup & deployment</h3>
                     <p data-i18n="setupD">Build the plugin, configure PostgreSQL, install on a server.</p>
-                </a><a href="features.html"><b>03</b>
-                    <h3 data-i18n="featT">Features &amp; status</h3>
+                    <span class="card-arrow" data-i18n="readMore">Read more →</span>
+                </a>
+                <a href="features.html">
+                    <b>03</b>
+                    <h3 data-i18n="featT">Features & status</h3>
                     <p data-i18n="featD">Implemented functionality, commands and known limits.</p>
-                </a><a href="development.html"><b>04</b>
+                    <span class="card-arrow" data-i18n="readMore">Read more →</span>
+                </a>
+                <a href="development.html">
+                    <b>04</b>
                     <h3 data-i18n="devT">Development</h3>
                     <p data-i18n="devD">Repository map, build workflow and implementation notes.</p>
-                </a></div>
+                    <span class="card-arrow" data-i18n="readMore">Read more →</span>
+                </a>
+            </div>
             <aside>
-                <h2 data-i18n="more">More project documents</h2>
-                <p data-i18n="moreD">Detailed guides and original design material:</p><a href="https://github.com/Artemon0/CS2-OpenWorld/blob/main/README.md"
-                    data-i18n="readme">Project README</a> · <a href="https://github.com/Artemon0/CS2-OpenWorld/blob/main/MAP_AUTHORING.md" data-i18n="maps">Map
-                    authoring</a> · <a href="https://github.com/Artemon0/CS2-OpenWorld/blob/main/CS2%20Open%20World.ru.md" data-i18n="spec">Full specification (RU)</a> ·
-                <a href="https://github.com/Artemon0/CS2-OpenWorld/blob/main/docs/ROADMAP.md">Roadmap</a>
+                <b data-i18n="more">More project documents</b>
+                <p data-i18n="moreD">Detailed guides and original design material:</p>
+                <a href="reference-readme.html" data-i18n="readme">Project README</a> ·
+                <a href="map-authoring.html" data-i18n="maps">Map authoring</a> ·
+                <a href="specification.html" data-i18n="specNav">Full specification (RU)</a> ·
+                <a href="reference-roadmap.html">Roadmap</a> ·
+                <a href="reference.html" data-i18n="allDocs">All documents</a>
             </aside>
         </section>
     </main>
-    <footer>CS2 Open World · AGPL-3.0-only · <span data-i18n="foot">Docs describe current implementation; planned
-            features are identified.</span></footer>
+    <footer>CS2 Open World · AGPL-3.0-only · <span data-i18n="foot">Docs describe current implementation; planned features are identified.</span></footer>
 </body>
-
 </html>

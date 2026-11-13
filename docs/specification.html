@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="description" content="CS2 Open World Full Specification — Complete architecture, modules, persistence, routing, and implementation boundaries.">
+    <title>Full Specification — CS2 Open World</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="style.css">
+    <script defer src="script.js"></script>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23101312'/><rect x='6' y='6' width='20' height='20' rx='3' fill='none' stroke='%23b9ef71' stroke-width='2'/><path d='M10 16h12M16 10v12' stroke='%23b9ef71' stroke-width='2' stroke-linecap='round'/></svg>">
+</head>
+<body>
+    <header>
+        <a class="brand" href="index.html">CS2 <i>Open World</i></a>
+        <nav aria-label="Main navigation">
+            <a href="index.html" data-i18n="home">Home</a>
+            <a href="architecture.html" data-i18n="arch">Architecture</a>
+            <a href="setup.html" data-i18n="setup">Setup</a>
+            <a href="features.html" data-i18n="features">Features</a>
+            <a href="development.html" data-i18n="dev">Development</a>
+            <a href="specification.html" data-i18n="specNav">Specification</a>
+            <a href="map-authoring.html" data-i18n="mapNav">Map Authoring</a>
+        </nav>
+        <a class="repo-link" href="https://github.com/Artemon0/CS2-OpenWorld" target="_blank" rel="noopener" data-i18n="repoLink">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
+            GitHub
+        </a>
+        <button type="button" id="language-toggle" aria-label="Switch language">RU</button>
+    </header>
+    <main class="doc">
+        <label data-i18n="specEy">FULL SPECIFICATION</label>
+        <h1 data-i18n="specTitle">Complete Architecture Specification</h1>
+        <p class="lead" data-i18n="specIntro">The original Russian design document translated and structured. Covers every architectural decision, module responsibility, persistence model, cluster routing, and known implementation boundaries.</p>
+
+        <div class="toc-placeholder" id="toc"></div>
+
+        <section id="design-principles">
+            <h2 data-i18n="specPrinciples">Design Principles</h2>
+            <ul>
+                <li data-i18n="specPrinciple1"><strong>Server authority:</strong> The server owns gameplay state. Client input is a request, not proof that a player owns an item, balance, or completed action.</li>
+                <li data-i18n="specPrinciple2"><strong>Modularity:</strong> Gameplay features are separate modules connected through explicit services and events.</li>
+                <li data-i18n="specPrinciple3"><strong>Persistence boundaries:</strong> Modules use persistence interfaces rather than issuing SQL directly.</li>
+                <li data-i18n="specPrinciple4"><strong>Safe engine lifetimes:</strong> Long-lived state should use stable identifiers and validated handles instead of retaining raw engine pointers.</li>
+                <li data-i18n="specPrinciple5"><strong>UI independence:</strong> Gameplay logic should not depend on a particular rendering mechanism.</li>
+            </ul>
+        </section>
+
+        <section id="runtime-layers">
+            <h2 data-i18n="specLayers">Runtime Layers</h2>
+            <div class="diagram">
+                <div class="arch-diagram">
+                    <div class="arch-layer">
+                        <strong>Counter-Strike 2</strong>
+                        <small>Game server process</small>
+                    </div>
+                    <div class="arch-arrow" aria-hidden="true">▼</div>
+                    <div class="arch-layer">
+                        <strong>Metamod:Source</strong>
+                        <small>Plugin interface</small>
+                    </div>
+                    <div class="arch-arrow" aria-hidden="true">▼</div>
+                    <div class="arch-layer">
+                        <strong>HL2SDK</strong>
+                        <small>Engine bindings & signatures</small>
+                    </div>
+                    <div class="arch-arrow" aria-hidden="true">▼</div>
+                    <div class="arch-layer core">
+                        <strong>OW Core</strong>
+                        <small>lifecycle · module manager · event bus · service registry · config · player lifecycle · engine adapters · diagnostics</small>
+                    </div>
+                    <div class="arch-row">
+                        <div class="arch-layer">
+                            <strong>Gameplay Modules</strong>
+                            <small>character · transfer · inventory · economy</small>
+                        </div>
+                        <div class="arch-layer">
+                            <strong>Adapters</strong>
+                            <small>PostgreSQL · text UI · input · optional particle menu</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <p data-i18n="specLayersDesc">The core owns plugin lifecycle and wires adapters and modules together. Modules publish and consume typed events and versioned service interfaces. The persistence adapter centralizes parameterized database operations.</p>
+        </section>
+
+        <section id="core-architecture">
+            <h2 data-i18n="specCore">OW Core (<code>src/core/</code>)</h2>
+            <h3 data-i18n="specCorePlugin">Plugin Entry & Lifecycle</h3>
+            <p data-i18n="specCorePluginDesc"><code>src/core/plugin.cpp</code> implements the Metamod lifecycle, player lifecycle hooks, the <code>ow_status</code> command, Steam authorization checks, game event hooks, and module initialization.</p>
+
+            <h3 data-i18n="specCoreModule">Module Manager</h3>
+            <p data-i18n="specCoreModuleDesc"><code>src/core/module_manager.*</code> handles module registration, startup ordering, and shutdown. Modules declare dependencies; the manager resolves and starts them in order.</p>
+
+            <h3 data-i18n="specCoreEvents">Event Bus</h3>
+            <p data-i18n="specCoreEventsDesc"><code>src/core/event_bus.h</code> carries typed lifecycle events. <code>Publish</code> is synchronous on the game thread; <code>Enqueue</code>/<code>DispatchPendingEvents</code> (drained once per <code>OnGameFrame</code>) deliver owned copies for self-publishing listeners. Re-entrant cycles are rejected past <code>MaxPublishDepth</code>. Cross-thread publishing is unsupported.</p>
+
+            <h3 data-i18n="specCoreServices">Service Registry</h3>
+            <p data-i18n="specCoreServicesDesc"><code>src/core/service_registry.h</code> exposes versioned interfaces. Modules register services; consumers request by interface ID and version. This decouples modules from concrete implementations.</p>
+
+            <h3 data-i18n="specCoreConfig">Configuration</h3>
+            <p data-i18n="specCoreConfigDesc"><code>src/core/cluster_config.*</code> loads and validates the server/zone topology from <code>openworld.ini</code>. Config is read once at load; hot-reload is planned (<code>core/config_manager</code> in roadmap).</p>
+        </section>
+
+        <section id="gameplay-modules">
+            <h2 data-i18n="specModules">Gameplay Modules (<code>src/modules/</code>)</h2>
+
+            <article class="card">
+                <h3 data-i18n="specModCharacter">Character Module</h3>
+                <p data-i18n="specModCharacterDesc">Manages character listing, creation, and selection. <code>src/modules/character/</code> and <code>src/modules/persistence/player_character_worker.*</code> perform async character loads off the game thread. Commands: <code>!character list</code>, <code>!character create <name></code>, <code>!character select <id></code>. A sole character is selected automatically.</p>
+            </article>
+
+            <article class="card">
+                <h3 data-i18n="specModTransfer">Transfer Module</h3>
+                <p data-i18n="specModTransferDesc">Implements route assignment and reconnect-based server transitions. <code>src/modules/transfer/</code> contains the validation state machine, idempotency checks, state transitions, and expiry. <strong>Does not preserve runtime player state across servers.</strong> Exposes <code>ITransferService</code> v1 while running. Cross-server coordinator (reservation, tokens, ownership fencing, destination arrival handshake) is open (ADR-025).</p>
+            </article>
+
+            <article class="card">
+                <h3 data-i18n="specModInventory">Inventory Module</h3>
+                <p data-i18n="specModInventoryDesc"><code>src/modules/inventory/</code> exposes <code>IInventoryService</code> for inventory snapshots. Loads/stores JSON snapshots with versioned compare-and-swap (stale revision rejected). Item acquisition, mutation commands, and gameplay rules are <strong>not implemented</strong>.</p>
+            </article>
+
+            <article class="card">
+                <h3 data-i18n="specModEconomy">Economy Module</h3>
+                <p data-i18n="specModEconomyDesc"><code>src/modules/economy/</code> exposes <code>IEconomyService</code> for wallet operations and idempotent transactions. <code>!balance</code> shows the selected character's wallet. Gameplay economy loops are <strong>not implemented</strong>.</p>
+            </article>
+
+            <article class="card">
+                <h3 data-i18n="specModPersistence">Persistence Module</h3>
+                <p data-i18n="specModPersistenceDesc"><code>src/modules/persistence/</code> retains optional generic LRU, async-warmup, and RESP2 Redis fallback sources. CMake excludes these unless <code>OW_ENABLE_CACHE_FALLBACK=ON</code>. <code>player_route_worker.*</code> performs async route lookups and assignments. The standard build includes only a small process-local cache for <code>LoadPlayerSettings</code> (512 entries, 4 MiB, 30s TTL).</p>
+            </article>
+        </section>
+
+        <section id="adapters">
+            <h2 data-i18n="specAdapters">Adapters (<code>src/adapters/</code>)</h2>
+
+            <article class="card">
+                <h3 data-i18n="specAdPostgres">PostgreSQL Adapter</h3>
+                <p data-i18n="specAdPostgresDesc"><code>src/adapters/persistence/postgres_adapter.*</code> dynamically loads libpq at runtime, checks connection on plugin load, and provides parameterized database operations. Owner-checked character loads, revision-checked inventory saves, idempotent economy transactions. Settings load asynchronously after full Steam authentication; results applied on game thread only if player session is still current.</p>
+            </article>
+
+            <article class="card">
+                <h3 data-i18n="specAdPanorama">Panorama Text Adapter</h3>
+                <p data-i18n="specAdPanoramaDesc"><code>src/adapters/panorama/</code> sends per-player notifications, console, chat, and center text through CS2 <code>TextMsg</code>. Text HUD toggled with <code>!hud [on|off|toggle]</code>. <strong>Cannot open arbitrary Panorama panels, run JS, or expose client actions.</strong> Map display falls back to current server map name.</p>
+            </article>
+
+            <article class="card">
+                <h3 data-i18n="specAdInput">Input Adapter</h3>
+                <p data-i18n="specAdInputDesc"><code>src/ui/input/</code> provides per-player input contexts, edge-triggered snapshot handling, and logical action dispatch. Optional client config forwards E→inventory and TAB→map action while preserving stock +use and scoreboard. Does not replace scoreboard or expose arbitrary keyboard events to server.</p>
+            </article>
+
+            <article class="card">
+                <h3 data-i18n="specAdParticle">Particle Menu (Experimental)</h3>
+                <p data-i18n="specAdParticleDesc"><code>src/ui/particle/</code> provides C++ menu model and sessions. Requires <code>adapters.particle_menu = true</code> (opt-in), Workshop resources, and live-game validation. Installs a KHook transmit filter; defaults off.</p>
+            </article>
+        </section>
+
+        <section id="server-clusters">
+            <h2 data-i18n="specClusters">Server Clusters & Routing</h2>
+
+            <h3 data-i18n="specClusterConfig">Cluster Configuration</h3>
+            <p data-i18n="specClusterConfigDesc">Each server has a unique <code>core.server_id</code>, shared <code>environment</code>, full <code>[servers.*]</code> list, and optional <code>[zones.*]</code> rectangular XY areas. All servers must use the same PostgreSQL database and routing migration (004).</p>
+
+            <h3 data-i18n="specClusterAffinity">Server Affinity</h3>
+            <p data-i18n="specClusterAffinityDesc">PostgreSQL stores player-to-server affinity. After Steam auth, the server async looks up the assigned server. First-time players → <code>[routing].lobby_server_id</code>. <code>!go <server_id></code> atomically updates assignment in PostgreSQL, then sends CS2 <code>connect</code>. This is a <strong>reconnect, not seamless transfer</strong> — position, inventory mutations, and runtime state do not carry over.</p>
+
+            <h3 data-i18n="specClusterZones">Zone Transitions</h3>
+            <p data-i18n="specClusterZonesDesc">Automatic transitions use <code>[zones.*]</code> rectangles. When a living, authenticated player crosses into another server's zone, destination is saved to PostgreSQL and client reconnects. Checks run ~4×/sec on game thread. Requires <code>routing.enforce_server_affinity = true</code>, <code>modules.transfer = true</code>, and a configured zone for the current map. All zones must share one world coordinate system. Destination map chooses spawn point; position/velocity do not carry over.</p>
+
+            <h3 data-i18n="specClusterFailures">Failure Modes</h3>
+            <ul>
+                <li data-i18n="specClusterFail1">Unknown/unavailable destination → fail closed (error logged, no redirect)</li>
+                <li data-i18n="specClusterFail2">PostgreSQL disabled or migration missing → routing fails closed</li>
+                <li data-i18n="specClusterFail3">Overlapping zones assigned to different servers → no transition</li>
+                <li data-i18n="specClusterFail4">Player outside all zones → no transition</li>
+            </ul>
+        </section>
+
+        <section id="persistence-model">
+            <h2 data-i18n="specPersistence">Persistence & Threading Model</h2>
+
+            <h3 data-i18n="specPersistSource">Source of Truth</h3>
+            <p data-i18n="specPersistSourceDesc">PostgreSQL is the authoritative store for persistent player and world data. Schema in <code>database/migrations/</code> (001–004), owned by <code>ow_migrator</code> role, accessed by <code>ow_app</code> with restricted permissions.</p>
+
+            <h3 data-i18n="specPersistCache">Settings Cache</h3>
+            <p data-i18n="specPersistCacheDesc">Bounded process-local cache <strong>only for <code>LoadPlayerSettings</code></strong>: 512 entries max, 4 MiB total JSON payload, 30s TTL. Successful writes refresh cache; failed writes invalidate entry. Changes on another server may take up to 30s to become visible. <strong>Not used for:</strong> characters, inventory, balances, transactions, authentication, transfer state.</p>
+
+            <h3 data-i18n="specPersistThreading">Threading</h3>
+            <p data-i18n="specPersistThreadingDesc">Database work that may block runs off the game thread (background workers). Results affecting engine state are applied on the game thread <strong>after validating the player session</strong> (SteamID + slot still match). The Redis/LRU/warmup fallback sources are experimental, excluded from default build, not connected to player lifecycle.</p>
+        </section>
+
+        <section id="ui-system">
+            <h2 data-i18n="specUI">UI System (<code>src/ui/</code>)</h2>
+
+            <h3 data-i18n="specUIManager">UI Manager</h3>
+            <p data-i18n="specUIManagerDesc"><code>src/ui/ui_manager.*</code> provides per-player UI routing and profile-based HUD text elements. Current renderer uses transient center-screen <code>TextMsg</code> messages, not custom graphical panels.</p>
+
+            <h3 data-i18n="specUIHUD">Text HUD</h3>
+            <p data-i18n="specUIHUDDesc">Multi-line center-screen text showing server, Steam session, and settings-load status. Toggled via <code>!hud</code>. Not a graphical Panorama panel.</p>
+
+            <h3 data-i18n="specUIInput">Input Handling</h3>
+            <p data-i18n="specUIInputDesc">Per-player input contexts with edge-triggered snapshots. Logical actions dispatched to modules. Client-side bind file (optional) maps E→inventory, TAB→map while preserving stock behavior.</p>
+
+            <h3 data-i18n="specUIParticle">Particle UI (Experimental)</h3>
+            <p data-i18n="specUIParticleDesc">C++ menu model with particle-based rendering. Requires Workshop resources, <code>adapters.particle_menu = true</code>, KHook transmit filter. Disabled by default.</p>
+        </section>
+
+        <section id="known-boundaries">
+            <h2 data-i18n="specBoundaries">Known Implementation Boundaries</h2>
+
+            <div class="row">
+                <div>
+                    <h3 data-i18n="specBoundaryNotImpl">Not Implemented</h3>
+                    <ul>
+                        <li data-i18n="specBoundary1">Seamless transfers (no disconnect/reconnect)</li>
+                        <li data-i18n="specBoundary2">Transfer snapshots & state restoration</li>
+                        <li data-i18n="specBoundary3">Position restoration across servers</li>
+                        <li data-i18n="specBoundary4">Automatic portal/trigger detection</li>
+                        <li data-i18n="specBoundary5">NPCs, quests, dialogue trees</li>
+                        <li data-i18n="specBoundary6">Vehicles, vehicle economy</li>
+                        <li data-i18n="specBoundary7">Complete gameplay inventory (pickup, crafting, mutation)</li>
+                        <li data-i18n="specBoundary8">Health/bleeding/medical systems</li>
+                        <li data-i18n="specBoundary9">Weapon economy extensions</li>
+                        <li data-i18n="specBoundary10">Social features (parties, friends, chat channels)</li>
+                        <li data-i18n="specBoundary11">Audio/music zones</li>
+                        <li data-i18n="specBoundary12">Graphical map panels (Panorama)</li>
+                        <li data-i18n="specBoundary13">Admin commands, bans, audit trail</li>
+                        <li data-i18n="specBoundary14">Role/permission model</li>
+                        <li data-i18n="specBoundary15">Sector/streaming management</li>
+                        <li data-i18n="specBoundary16">Cross-server coordinator RPC</li>
+                        <li data-i18n="specBoundary17">Message transport between cluster nodes</li>
+                        <li data-i18n="specBoundary18">Config hot-reload</li>
+                        <li data-i18n="specBoundary19">Structured diagnostics dump</li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 data-i18n="specBoundaryGaps">Known Gaps in Current Code</h3>
+                    <ul>
+                        <li data-i18n="specGap1"><code>plugin.cpp</code> is a single large TU; chat router, route coordinator, character/settings coordinators, hook binder are natural extraction points</li>
+                        <li data-i18n="specGap2">Gamedata <code>Offsets</code> block lacks <code>Touch</code>, <code>StartTouch</code>, <code>EndTouch</code>, <code>CollisionRulesChanged</code>; helpers unused, degrade to no-op</li>
+                        <li data-i18n="specGap3">Character, inventory, wallet never cached — every read hits PostgreSQL (correct but may need read-through cache at scale)</li>
+                        <li data-i18n="specGap4">Event delivery single-threaded; synchronous <code>Publish</code>; listener unbinding during publish skips remaining listeners intentionally</li>
+                        <li data-i18n="specGap5"><code>TransferManager</code> purely in-process, no locks; game-thread only; not a cross-server coordinator</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <section id="configuration-ref">
+            <h2 data-i18n="specConfigRef">Configuration Reference (<code>openworld.ini</code>)</h2>
+
+            <h3 data-i18n="specConfigCore">[core]</h3>
+            <pre><code>server_id = west           # unique per CS2 process
+environment = production   # shared across cluster</code></pre>
+
+            <h3 data-i18n="specConfigPersist">[persistence]</h3>
+            <pre><code>provider = postgresql
+connection_env = OW_PG_CONNINFO   # env var with libpq connstring
+connect_timeout = 3               # seconds, 1-60</code></pre>
+
+            <h3 data-i18n="specConfigCache">[cache] (generic fallback only)</h3>
+            <pre><code>provider = memory
+shared_provider = none
+redis_host = 127.0.0.1
+redis_port = 6379
+redis_database = 0
+redis_username_env = OW_REDIS_USERNAME
+redis_password_env = OW_REDIS_PASSWORD
+redis_key_prefix = openworld:production:
+redis_timeout_ms = 250
+redis_max_value_bytes = 4194304
+redis_tls = false
+warmup_workers = 2
+warmup_queue_capacity = 4096</code></pre>
+
+            <h3 data-i18n="specConfigServers">[servers.*]</h3>
+            <pre><code>[servers.west]
+connect = west.example.net:27015  # client-reachable address
+map = ow_west
+max_players = 64
+workshop_collection_id = 1234567890</code></pre>
+
+            <h3 data-i18n="specConfigZones">[zones.*]</h3>
+            <pre><code>[zones.harbor]
+server_id = west
+map = ow_west
+min_x = -4096
+min_y = -2048
+max_x = 0
+max_y = 2048</code></pre>
+
+            <h3 data-i18n="specConfigRouting">[routing]</h3>
+            <pre><code>enforce_server_affinity = true
+lobby_server_id = lobby</code></pre>
+
+            <h3 data-i18n="specConfigModules">[modules]</h3>
+            <pre><code>core = true
+character = true
+transfer = true
+inventory = true
+economy = true</code></pre>
+
+            <h3 data-i18n="specConfigAdapters">[adapters]</h3>
+            <pre><code>postgresql = true
+panorama_text = true
+hud = true
+input_actions = true
+map_overview_cache = true
+particle_menu = false    # experimental, opt-in</code></pre>
+        </section>
+
+        <section id="database-schema">
+            <h2 data-i18n="specDBSchema">Database Schema Overview</h2>
+            <p data-i18n="specDBSchemaDesc">All tables in <code>ow</code> schema. Migrations applied in order:</p>
+            <ul>
+                <li data-i18n="specDB1"><strong>001_core.sql</strong> — core tables, player settings, characters</li>
+                <li data-i18n="specDB2"><strong>002_application_functions.sql</strong> — helper functions for character/settings ops</li>
+                <li data-i18n="specDB3"><strong>003_inventory_functions.sql</strong> — inventory snapshot with revision CAS, economy/wallet</li>
+                <li data-i18n="specDB4"><strong>004_player_server_routes.sql</strong> — server affinity & routing (required for cluster)</li>
+            </ul>
+            <p data-i18n="specDBPerms">Bootstrap scripts create <code>ow_migrator</code> (schema owner) and <code>ow_app</code> (restricted) roles. <code>003_app_permissions.sql</code> grants application permissions. Never run plugin as <code>postgres</code> or <code>ow_migrator</code>.</p>
+        </section>
+
+        <section id="build-deploy">
+            <h2 data-i18n="specBuild">Build & Deploy</h2>
+
+            <h3 data-i18n="specBuildReq">Requirements</h3>
+            <ul>
+                <li data-i18n="specBuildReq1">CMake 3.19+</li>
+                <li data-i18n="specBuildReq2">64-bit MSVC (Windows) or Clang (Linux)</li>
+                <li data-i18n="specBuildReq3">hl2sdk-cs2 and metamod-source submodules initialized</li>
+                <li data-i18n="specBuildReq4">PostgreSQL 14+ and libpq runtime</li>
+            </ul>
+
+            <h3 data-i18n="specBuildSteps">Build Commands</h3>
+            <pre><code># Linux
+git submodule update --init --recursive
+export CC=clang CXX=clang++
+cmake -S . -B build-linux -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build-linux -j
+ctest --test-dir build-linux --output-on-failure
+
+# Windows
+cmake -S . -B build -A x64
+cmake --build build --config Release</code></pre>
+
+            <h3 data-i18n="specBuildFlags">Important Flags</h3>
+            <ul>
+                <li data-i18n="specBuildFlag1"><strong>Exceptions disabled</strong> (<code>-fno-exceptions</code> / <code>_HAS_EXCEPTIONS=0</code>). Report failures via return values, <code>bool</code>, <code>std::optional</code>, or <code>IsRunning()</code>/<code>IsEnabled()</code> accessors.</li>
+                <li data-i18n="specBuildFlag2"><code>-DOW_ENABLE_CACHE_FALLBACK=ON</code> includes experimental Redis/LRU/warmup sources (excluded by default).</li>
+                <li data-i18n="specBuildFlag3">Gamedata (<code>gamedata/cs2-openworld.games.txt</code>) drives every offset/signature. Verify before shipping: <code>python tools/update_offsets.py --check</code>.</li>
+            </ul>
+
+            <h3 data-i18n="specBuildPackage">Package Output</h3>
+            <p data-i18n="specBuildPackageDesc">Build writes to <code>build-windows-release/package</code> (or <code>build-linux/package</code>). Contains <code>addons/</code> and <code>cfg/</code> mirroring server <code>game/csgo/</code>. Copy both folders into server <code>game/csgo/</code>. Provide libpq at runtime. See <code>PACKAGE_INSTALL.txt</code> for details.</p>
+        </section>
+
+        <section id="license">
+            <h2 data-i18n="specLicense">License</h2>
+            <p data-i18n="specLicenseDesc">CS2 Open World is licensed under <strong>GNU Affero General Public License, version 3 only (AGPL-3.0-only)</strong>; see <code>LICENSE</code>. Third-party components retain their own terms, listed in <code>THIRD_PARTY_NOTICES.md</code>. AGPL does not prohibit commercial use or sales, and cannot override Valve's separate distribution rules.</p>
+        </section>
+        <aside><b>Полная версия документа / Full document</b><a href="reference-specification-ru.html">Открыть документ →</a> · <a href="reference.html">Все документы</a></aside>
+    </main>
+    <footer>CS2 Open World · AGPL-3.0-only · Full specification translated from <a href="https://github.com/Artemon0/CS2-OpenWorld/blob/main/CS2%20Open%20World.ru.md">CS2 Open World.ru.md</a></footer>
+</body>
+</html>
